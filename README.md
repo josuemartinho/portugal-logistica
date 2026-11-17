@@ -2,7 +2,9 @@
 
 Simulador de logística rodoviária em Portugal. O servidor é a única fonte da verdade: reservas, relógio, economia, entregas, conquistas e geometria das rotas são processados no Node, mesmo sem navegador aberto. O cliente apenas desenha o que a API devolve.
 
-**Versão atual: Fase 6 — v7.0.0** · Node 22.5+ · SQLite nativo · **zero dependências npm** (Leaflet 1.9.4 é servido localmente em `public/vendor/`).
+**Versão atual: Fase 7 — v8.0.0** · Node 22.5+ · SQLite nativo · **zero dependências npm** (Leaflet 1.9.4 é servido localmente em `public/vendor/`).
+
+O mapa é agora uma aba própria: desenha só as **rotas em execução** e **167 clientes potenciais reais** (Pingo Doce, Continente, Stellantis, Delta Cafés, Sofrapa, farmácias, oficinas e autopeças). Os contratos ficam na aba **Contratos**, sem faixa por baixo do mapa.
 
 ## Começar
 
@@ -75,7 +77,7 @@ Ver [`DEPLOY.md`](DEPLOY.md). Resumo: `docker compose up --build`, ou importar `
 ## Ligações
 
 - Repositório: `https://github.com/josuemartinho/portugal-logistica`
-- Releases: uma tag por fase (`v2.0.0-fase1` … `v7.0.0-fase6`)
+- Releases: uma tag por fase (`v2.0.0-fase1` … `v8.0.0-fase7`)
 - Protótipo Pages: `https://josuemartinho.github.io/portugal-logistica/`
 - Guia do jogador: [`COMO_JOGAR.md`](COMO_JOGAR.md)
 
