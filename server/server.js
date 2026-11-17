@@ -85,7 +85,7 @@ const routes = {
     if (h.startsWith("Bearer ")) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash(h.slice(7)));
     json(res, 200, { ok:true });
   },
-  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"5.0-fase4", publicApi:"/api/public/v1" }),
+  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"6.0-fase5", publicApi:"/api/public/v1", pwa:true }),
   "GET /api/state": async (req,res,company) => json(res, 200, getState(company.id)),
   "POST /api/offers/accept": async (req,res,company) => {
     const b = await body(req);
@@ -157,7 +157,8 @@ const routes = {
 
 const MIME = { ".html":"text/html; charset=utf-8", ".css":"text/css; charset=utf-8",
   ".js":"text/javascript; charset=utf-8", ".json":"application/json", ".svg":"image/svg+xml",
-  ".png":"image/png", ".ico":"image/x-icon", ".md":"text/markdown; charset=utf-8" };
+  ".png":"image/png", ".ico":"image/x-icon", ".md":"text/markdown; charset=utf-8",
+  ".webmanifest":"application/manifest+json" };
 function staticFile(req,res,pathname){
   let rel = decodeURIComponent(pathname);
   if (rel === "/" || rel === "") rel = "/index.html";
@@ -167,7 +168,8 @@ function staticFile(req,res,pathname){
   fs.readFile(file, (err,data) => {
     if (err) { json(res,404,{error:"Não encontrado."}); return; }
     res.writeHead(200, { "Content-Type":MIME[path.extname(file)]||"application/octet-stream",
-      "Cache-Control":"no-cache", "X-Content-Type-Options":"nosniff" });
+      "Cache-Control":"no-cache", "X-Content-Type-Options":"nosniff",
+      ...(file.endsWith("sw.js")?{"Service-Worker-Allowed":"/"}:{}) });
     res.end(data);
   });
 }
