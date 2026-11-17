@@ -3,6 +3,7 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 const G = require("./game");
 const { CFG, VANS, DNAMES, RECURRING_ROUTES, pick, uid, estimate, travelMs, makeOffer, hhmm } = G;
@@ -167,6 +168,21 @@ CREATE TABLE IF NOT EXISTS loans (
   taken_at INTEGER NOT NULL,
   closed_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS achievements (
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  unlocked_at INTEGER NOT NULL,
+  reward REAL NOT NULL,
+  PRIMARY KEY(company_id, key)
+);
+CREATE TABLE IF NOT EXISTS api_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  key_hash TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER
+);
 `);
 
 /* Migrações leves — acrescentam colunas sem apagar dados existentes. */
@@ -185,6 +201,14 @@ addColumn("trips", "from_wh", "INTEGER");
 addColumn("trips", "to_wh", "INTEGER");
 addColumn("companies", "reputation", "REAL NOT NULL DEFAULT 50");
 addColumn("vehicles", "condition", "REAL NOT NULL DEFAULT 100");
+addColumn("companies", "stock_sold_kg", "REAL NOT NULL DEFAULT 0");
+addColumn("market", "event_slot", "INTEGER NOT NULL DEFAULT 0");
+addColumn("market", "event_type", "TEXT");
+addColumn("market", "event_message", "TEXT");
+addColumn("market", "event_until", "INTEGER");
+addColumn("market", "fuel_mod", "REAL NOT NULL DEFAULT 0");
+addColumn("market", "price_mod", "REAL NOT NULL DEFAULT 0");
+addColumn("market", "time_mod", "REAL NOT NULL DEFAULT 0");
 
 if (db.prepare("SELECT 1 FROM market WHERE id=1").get() === undefined) {
   db.prepare("INSERT INTO market(id,fuel_price,updated_at) VALUES(1,?,?)").run(G.fuelPrice(Date.now()), Date.now());
@@ -201,6 +225,7 @@ function tx(fn) {
   catch (e) { try { db.exec("ROLLBACK"); } catch {} throw e; }
 }
 const round = n => Math.round(n*100)/100;
+const round3b = n => Math.round(n*1000)/1000;
 function companyOf(userId){ return db.prepare("SELECT * FROM companies WHERE user_id=?").get(userId); }
 function companyById(id){ return db.prepare("SELECT * FROM companies WHERE id=?").get(id); }
 
@@ -234,12 +259,12 @@ function processDays(companyId, now, fromDay, createdAt){
     const whRent = db.prepare("SELECT COALESCE(SUM(rent_monthly),0) v FROM warehouses WHERE company_id=?").get(companyId).v;
     const total = round(CFG.rent + wages + whRent);
     if (total > 0) {
-      move(companyId, "cost", `Aluguer base/armazéns + ordenados · ${new Date(day*86400000).toLocaleDateString("pt-PT")}`, -total, day*86400000, "daily", String(day));
+      move(companyId, "cost", `Aluguer base/armazéns + ordenados · ${new Date(day*86400000).toLocaleDateString("pt-PT")}`, -total, day*86400000, "daily", companyId+"_"+day);
       log(companyId, "info", `Despesas do dia: €${total.toFixed(2)}`, day*86400000);
     }
     for (const l of db.prepare("SELECT * FROM loans WHERE company_id=? AND closed_at IS NULL").all(companyId)) {
       const interest = round(l.balance*l.daily_rate);
-      if (interest > 0) move(companyId, "cost", `Juros do empréstimo #${l.id}`, -interest, day*86400000, "loanint", l.id+"_"+day);
+      if (interest > 0) move(companyId, "cost", `Juros do empréstimo #${l.id}`, -interest, day*86400000, "loanint", companyId+"_"+l.id+"_"+day);
     }
     db.prepare("UPDATE companies SET last_day=? WHERE id=?").run(day, companyId);
   }
@@ -285,6 +310,7 @@ function processEvents(companyId, now){
             } else {
               const sale = round(trip.stock_kg * CFG.goodsSell);
               move(companyId, "revenue", `Venda de mercadoria em ${trip.to_city}`, sale, now, "sale", "sale_"+trip.id);
+              db.prepare("UPDATE companies SET stock_sold_kg=stock_sold_kg+? WHERE id=?").run(trip.stock_kg, companyId);
               log(companyId, "good", `Mercadoria vendida em ${trip.to_city}: €${sale.toFixed(2)}`, now);
             }
           }
@@ -329,6 +355,42 @@ function autoDispatch(companyId){
   }
 }
 
+function processWorldEvent(companyId, now){
+  const m = db.prepare("SELECT * FROM market WHERE id=1").get();
+  const slot = Math.floor(now/(2*86400000));
+  if (m.event_slot === slot) return;
+  const ev = G.WORLD_EVENTS[Math.abs(slot) % G.WORLD_EVENTS.length];
+  db.prepare(`UPDATE market SET event_slot=?,event_type=?,event_message=?,event_until=?,fuel_mod=?,price_mod=?,time_mod=? WHERE id=1`)
+    .run(slot, ev.type, ev.name+" — "+ev.desc, now+2*86400000, ev.fuelMod, ev.priceMod, ev.timeMod);
+  for (const c of db.prepare("SELECT id FROM companies").all()) log(c.id, "info", `Evento mundial: ${ev.name} — ${ev.desc}`, now);
+}
+function processAchievements(companyId){
+  const c = companyById(companyId);
+  const deliveries = db.prepare("SELECT COUNT(*) n FROM trips WHERE company_id=? AND processed_at IS NOT NULL").get(companyId).n;
+  const wh = db.prepare("SELECT COUNT(*) n FROM warehouses WHERE company_id=?").get(companyId).n;
+  const vans = db.prepare("SELECT COUNT(*) n FROM vehicles WHERE company_id=?").get(companyId).n;
+  const ctx = { deliveries, wh, vans, rep:c.reputation, cash:c.cash, sold:c.stock_sold_kg||0 };
+  const unlocked = new Set(db.prepare("SELECT key FROM achievements WHERE company_id=?").all(companyId).map(x=>x.key));
+  for (const a of G.ACHIEVEMENTS) {
+    if (unlocked.has(a.key)) continue;
+    let pass = false;
+    switch(a.key){
+      case "first": pass = ctx.deliveries>=1; break;
+      case "five": pass = ctx.deliveries>=5; break;
+      case "fifteen": pass = ctx.deliveries>=15; break;
+      case "warehouse": pass = ctx.wh>=2; break;
+      case "fleet": pass = ctx.vans>=2; break;
+      case "reputation": pass = ctx.rep>=80; break;
+      case "rich": pass = ctx.cash>=50000; break;
+      case "trader": pass = ctx.sold>=1000; break;
+    }
+    if (!pass) continue;
+    db.prepare("INSERT OR IGNORE INTO achievements(company_id,key,unlocked_at,reward) VALUES(?,?,?,?)")
+      .run(companyId, a.key, c.now_ms, a.reward);
+    move(companyId, "revenue", `Conquista: ${a.name}`, a.reward, c.now_ms, "achievement", companyId+"_"+a.key);
+    log(companyId, "good", `Conquista desbloqueada: ${a.name} (+€${a.reward})`, c.now_ms);
+  }
+}
 function processNpcs(companyId, now){
   const c = companyById(companyId);
   if (now < c.next_npc_at) return;
@@ -348,12 +410,14 @@ function processNpcs(companyId, now){
 }
 function refreshOffers(now){
   const open = db.prepare("SELECT COUNT(*) n FROM offers WHERE status='open' AND expires_at>?").get(now).n;
+  const m = db.prepare("SELECT price_mod FROM market WHERE id=1").get();
+  const priceMod = m ? m.price_mod : 0;
   const ins = db.prepare(`INSERT INTO offers(id,client,from_city,to_city,km,kg,m3,price,created_at,expires_at,status)
                           VALUES(@id,@client,@from_city,@to_city,@km,@kg,@m3,@price,@created_at,@expires_at,'open')`);
   for (let i=open; i<CFG.offerTarget; i++) {
     const o = makeOffer(now);
     ins.run({ id:o.id, client:o.client, from_city:o.from, to_city:o.to,
-      km:o.km, kg:o.kg, m3:o.m3, price:o.price,
+      km:o.km, kg:o.kg, m3:o.m3, price:round(o.price*(1+priceMod)),
       created_at:o.created_at, expires_at:o.expires_at });
   }
 }
@@ -367,6 +431,7 @@ function advance(companyId){
   try {
     db.prepare("UPDATE companies SET now_ms=?,last_real_ms=? WHERE id=?").run(now, real, companyId);
     ensureBaseWarehouse(companyId, c.base_city);
+    processWorldEvent(companyId, now);
     processDays(companyId, now, c.last_day, c.created_at);
     processRecurring(companyId, now);
     refreshOffers(now);
@@ -374,6 +439,7 @@ function advance(companyId){
   } catch(e){ try{db.exec("ROLLBACK")}catch{} throw e; }
   processEvents(companyId, now);
   processNpcs(companyId, now);
+  processAchievements(companyId);
   autoDispatch(companyId);
 }
 
@@ -396,7 +462,18 @@ function getState(companyId){
   return {
     company: { name:c.name, base:c.base_city, cash:round(c.cash), now:c.now_ms, speed:c.speed,
                createdAt:c.created_at, autoDispatch:!!c.auto_dispatch, reputation:round(c.reputation) },
-    market: { fuelPrice:G.fuelPrice(c.now_ms), taxRate:CFG.taxRate },
+    market: { fuelPrice:G.fuelPrice(c.now_ms), taxRate:CFG.taxRate,
+              event: (()=>{ const m=db.prepare("SELECT event_type,event_message,event_until,fuel_mod,price_mod,time_mod FROM market WHERE id=1").get();
+                            return m && m.event_type ? { ...m, message:m.event_message, active:m.event_until>c.now_ms,
+                              label:G.WORLD_EVENTS.find(e=>e.type===m.event_type)?.name||m.event_type } : null; })() },
+    leaderboard: leaderboard(companyId),
+    achievements: db.prepare("SELECT key,unlocked_at,reward FROM achievements WHERE company_id=? ORDER BY unlocked_at")
+      .all(companyId).map(a => {
+        const def = G.ACHIEVEMENTS.find(x=>x.key===a.key) || {};
+        return { ...a, name:def.name||a.key, desc:def.desc||"" };
+      }),
+    achievementCatalog: G.ACHIEVEMENTS,
+    apiKeys: listApiKeys(companyId),
     loans: db.prepare("SELECT * FROM loans WHERE company_id=? ORDER BY id DESC").all(companyId),
     vehicles: db.prepare("SELECT * FROM vehicles WHERE company_id=? ORDER BY id").all(companyId),
     drivers: db.prepare("SELECT * FROM drivers WHERE company_id=? ORDER BY id").all(companyId),
@@ -432,11 +509,12 @@ function acceptOfferTx(companyId, offerId, vehicleId, driverId){
     db.prepare("UPDATE stock SET kg=round(kg-?,2), value=round(value-?,2) WHERE warehouse_id=?")
       .run(o.kg, stockValue, fromWh.id);
   }
-  const fuelNow = G.fuelPrice(c.now_ms);
+  const m = db.prepare("SELECT * FROM market WHERE id=1").get();
+  const fuelNow = round3b(G.fuelPrice(c.now_ms) + (m.fuel_mod||0));
   db.prepare("UPDATE market SET fuel_price=?,updated_at=? WHERE id=1").run(fuelNow, Date.now());
   const cost = estimate(o.km, o.kg, true, fuelNow);
   if (c.cash < cost.cash) throw Error("Caixa insuficiente para os custos estimados.");
-  const start = c.now_ms, end = start + travelMs(o.km);
+  const start = c.now_ms, end = start + Math.round(travelMs(o.km)*(1+(m.time_mod||0)));
   const info = db.prepare(`INSERT INTO trips(company_id,offer_id,client,from_city,to_city,km,price,cost_cash,cost_economic,
                     vehicle_id,driver_id,start_at,end_at,kind,stock_kg,stock_value,from_wh,to_wh)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -467,7 +545,7 @@ function rentWarehouse(companyId, city){
     const r = db.prepare("INSERT INTO warehouses(company_id,city,rent_monthly,created_at) VALUES(?,?,?,?)")
       .run(companyId, city, CFG.warehouseRent, c.now_ms);
     db.prepare("INSERT INTO stock(warehouse_id,kg,value) VALUES(?,0,0)").run(Number(r.lastInsertRowid));
-    move(companyId, "cost", `Caução do armazém de ${city}`, -CFG.warehouseDeposit, c.now_ms, "wh", "wh_"+city+"_"+c.now_ms);
+    move(companyId, "cost", `Caução do armazém de ${city}`, -CFG.warehouseDeposit, c.now_ms, "wh", "wh_"+companyId+"_"+city+"_"+c.now_ms);
     log(companyId, "info", `Armazém aberto em ${city}`, c.now_ms);
     return { ok:true };
   });
@@ -497,6 +575,7 @@ function sellStock(companyId, warehouseId, kg){
     if (qty < 10) throw Error("Stock insuficiente.");
     const rev = round(qty*CFG.goodsSell), ref = "sell_"+warehouseId+"_"+c.now_ms+"_"+qty;
     if (!move(companyId, "revenue", `Venda de ${qty} kg em ${w.city}`, rev, c.now_ms, "goods", ref)) return { ok:true };
+    db.prepare("UPDATE companies SET stock_sold_kg=stock_sold_kg+? WHERE id=?").run(qty, companyId);
     db.prepare("UPDATE stock SET kg=round(kg-?,2), value=round(value-?,2) WHERE warehouse_id=?")
       .run(qty, round(w.value*(qty/w.kg)), warehouseId);
     return { ok:true, revenue:rev };
@@ -535,7 +614,7 @@ function buyVehicle(companyId, model){
     if (c.cash < spec.price) throw Error("Caixa insuficiente.");
     if (db.prepare("SELECT COUNT(*) n FROM vehicles WHERE company_id=?").get(companyId).n >= CFG.maxVehicles) throw Error("Limite de veículos atingido.");
     db.prepare("INSERT INTO vehicles(company_id,model,at_city,status,km) VALUES(?,?,?,'idle',0)").run(companyId, model, c.base_city);
-    move(companyId, "cost", `Compra de ${spec.name}`, -spec.price, c.now_ms, "buy", "vehicle_"+Date.now());
+    move(companyId, "cost", `Compra de ${spec.name}`, -spec.price, c.now_ms, "buy", "vehicle_"+companyId+"_"+Date.now());
     log(companyId, "info", `Comprou ${spec.name} por €${spec.price.toFixed(2)}`, c.now_ms);
     return { ok:true };
   });
@@ -549,7 +628,7 @@ function hireDriver(companyId){
     const used = db.prepare("SELECT name FROM drivers WHERE company_id=?").all(companyId).map(d=>d.name);
     const name = DNAMES.find(n=>!used.includes(n)) || pick(DNAMES);
     db.prepare("INSERT INTO drivers(company_id,name,at_city,status) VALUES(?,?,?,'idle')").run(companyId, name, c.base_city);
-    move(companyId, "cost", `Firma de ${name}`, -CFG.hireCost, c.now_ms, "hire", "driver_"+Date.now());
+    move(companyId, "cost", `Firma de ${name}`, -CFG.hireCost, c.now_ms, "hire", "driver_"+companyId+"_"+Date.now());
     log(companyId, "info", `Contratou ${name}`, c.now_ms);
     return { ok:true };
   });
@@ -608,7 +687,56 @@ function repairVehicle(companyId, vehicleId){
   });
 }
 
+/* ---------- Fase 4: ranking, API pública e chaves ---------- */
+function leaderboard(companyId){
+  const rows = db.prepare(`SELECT c.id,c.name,c.base_city,c.cash,c.reputation,
+      (SELECT COUNT(*) FROM trips t WHERE t.company_id=c.id AND t.processed_at IS NOT NULL) deliveries,
+      (SELECT COALESCE(SUM(t.price),0) FROM trips t WHERE t.company_id=c.id AND t.processed_at IS NOT NULL) revenue
+    FROM companies c
+    ORDER BY c.cash DESC LIMIT 10`).all();
+  const me = db.prepare(`SELECT c.id,c.name,c.base_city,c.cash,c.reputation,
+      (SELECT COUNT(*) FROM trips t WHERE t.company_id=c.id AND t.processed_at IS NOT NULL) deliveries
+    FROM companies c WHERE c.id=?`).get(companyId);
+  const rank = db.prepare(`SELECT COUNT(*) n FROM companies WHERE cash>?`).get(me ? me.cash : 0).n + 1;
+  return { rows, me:me?{...me,rank}:null, total:db.prepare("SELECT COUNT(*) n FROM companies").get().n };
+}
+function publicStats(){
+  const t = db.prepare("SELECT COUNT(*) deliveries, COALESCE(SUM(price),0) revenue FROM trips WHERE processed_at IS NOT NULL").get();
+  return {
+    ok:true, generatedAt:Date.now(),
+    companies:db.prepare("SELECT COUNT(*) n FROM companies").get().n,
+    deliveries:t.deliveries, revenue:round(t.revenue),
+    topCity:db.prepare("SELECT base_city city,COUNT(*) n FROM companies GROUP BY base_city ORDER BY n DESC LIMIT 1").get()?.city||null,
+    event:db.prepare("SELECT event_type type,event_message message FROM market WHERE id=1").get()
+  };
+}
+const keyHash = raw => crypto.createHash("sha256").update(raw).digest("hex");
+function createApiKey(companyId, label){
+  const name = String(label||"Chave sem nome").trim().slice(0,40);
+  const raw = "plv1_" + crypto.randomBytes(24).toString("base64url");
+  db.prepare("INSERT INTO api_keys(company_id,key_hash,label,created_at) VALUES(?,?,?,?)")
+    .run(companyId, keyHash(raw), name, Date.now());
+  return { ok:true, key:raw, label:name, note:"Guarde esta chave: só é mostrada uma vez." };
+}
+function listApiKeys(companyId){
+  return db.prepare("SELECT id,label,created_at,last_used_at FROM api_keys WHERE company_id=? ORDER BY id DESC")
+    .all(companyId);
+}
+function revokeApiKey(companyId, id){
+  const r = db.prepare("DELETE FROM api_keys WHERE id=? AND company_id=?").run(Number(id), companyId);
+  if (!r.changes) throw Error("Chave inválida.");
+  return { ok:true };
+}
+function authApiKey(raw){
+  if (!raw) return null;
+  const k = db.prepare("SELECT * FROM api_keys WHERE key_hash=?").get(keyHash(raw));
+  if (!k) return null;
+  db.prepare("UPDATE api_keys SET last_used_at=? WHERE id=?").run(Date.now(), k.id);
+  return { id:k.id, companyId:k.company_id, label:k.label };
+}
+
 module.exports = { db, tx, companyOf, companyById, ensureBaseWarehouse, getState, acceptOffer,
   buyVehicle, hireDriver, setSpeed, advance, log,
   rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch,
-  takeLoan, repayLoan, repairVehicle };
+  takeLoan, repayLoan, repairVehicle,
+  leaderboard, publicStats, createApiKey, listApiKeys, revokeApiKey, authApiKey };
