@@ -1,6 +1,6 @@
-# Portugal Logística — Fase 1
+# Portugal Logística — Fase 2
 
-Versão com servidor, contas e base de dados. O protótipo da Fase 0 continua em `index.html` (e no GitHub Pages).
+Versão com servidor, contas, base de dados, armazéns e contratos recorrentes. O protótipo da Fase 0 continua em `index.html` (GitHub Pages).
 
 ## Arrancar
 
@@ -11,46 +11,43 @@ cd "C:\Users\josue\OneDrive\Documentos\Projeto Padrão"
 npm start
 ```
 
-Abrir: **http://localhost:3000**
-
-Para acessar pelo celular na mesma Wi-Fi: `http://192.168.1.252:3000`.
+Abrir: **http://localhost:3000** · No celular, mesma Wi-Fi: `http://192.168.1.252:3000`.
 
 ## Primeira vez
 
-1. Clique em **Criar empresa**.
-2. Escolha utilizador, senha, nome da empresa e cidade base.
-3. A sessão dura 30 dias e fica guardada no navegador.
+1. **Criar empresa** com utilizador, senha, nome e cidade base.
+2. **Equipa** → contratar motorista (€300 + €1 500/mês + 22%).
+3. **Frota** → comprar carrinha (€14 000) ou camião leve (€24 000).
+4. **Mercado** → aceitar contrato → Reservar e partir.
+5. Use **60×** ou **300×** no topo para acelerar os testes.
 
-## Ciclo de jogo
+## Ciclo da Fase 2 — mercadorias
 
-1. **Equipa** → contratar motorista (€300 + €1 500/mês + 22%).
-2. **Frota** → comprar carrinha (€14 000) ou camião leve (€24 000).
-3. **Mercado** → escolher contrato → **Aceitar** → selecionar veículo e motorista → **Reservar e partir**.
-4. Acompanhe o veículo no mapa. Use **60×** ou **300×** para testar sem esperar.
-5. Na chegada, o servidor credita a receita e lança os custos **uma única vez**; veículo e motorista ficam no destino.
-6. **Finanças** mostra receitas, custos, margem e movimentos; **Histórico** mostra os eventos do servidor.
+1. **Armazéns**: a sede já tem um armazém. Abra filiais noutras cidades (€800 de caução + €120/mês, máx. 3).
+2. Compre stock no armazém de origem a **€0,50/kg**.
+3. **Contratos recorrentes**: assine uma rota do catálogo; a cada 7 dias o servidor gera uma oferta exigindo aquele stock.
+4. Aceite a oferta (ou ative a **expedição automática**). No destino, a mercadoria entra no armazém local ou é vendida automaticamente a **€0,68/kg** se não houver armazém.
+5. Venda stock manualmente em qualquer armazém a €0,68/kg.
 
-## O que mudou em relação ao protótipo
+## Separadores
 
-| Antes (Fase 0) | Agora (Fase 1) |
-|---|---|
-| `localStorage` no navegador | SQLite em `data/game.db`, no servidor |
-| Cliente decidia o tempo | Servidor é a única fonte da verdade |
-| Reserva podia duplicar | Transação atómica + `UNIQUE(offer_id)` |
-| Pagamento podia repetir | Eventos com `processed_at` + movimentos com chave única |
-| Sem conta | Registo/login com senha cifrada (scrypt) e sessão de 30 dias |
-| Estado local por dispositivo | Mesmo progresso em PC, celular e qualquer navegador |
+Mercado · Armazéns · Frota · Equipa · Finanças · Histórico.
+
+## Garantias do servidor
+
+- Relógio do servidor com avanço limitado a 30 dias de ausência.
+- Reserva atómica de veículo, motorista, oferta e stock.
+- Entregas e movimentos idempotentes (`processed_at` + chaves únicas).
+- A expedição automática corre no servidor, mesmo sem navegador aberto.
 
 ## Estrutura
 
 ```
-server/game.js    constantes e regras do mundo
-server/db.js      esquema SQLite, transações, relógio, NPCs
-server/server.js  API HTTP, autenticação, ficheiros estáticos
-public/           cliente (index.html, styles.css, app.js)
-data/game.db      base de dados (não versionar)
+server/game.js    constantes, cidades, ofertas, rotas recorrentes
+server/db.js      SQLite, transações, relógio, NPCs, stock, expedição automática
+server/server.js  API HTTP, autenticação, estáticos
+public/           cliente (6 separadores)
+data/game.db      base de dados (não versionada)
 ```
 
-## Importante
-
-O **GitHub Pages não roda Node**, por isso a Fase 1 não pode ser publicada lá. O Pages continua a hospedar o protótipo da Fase 0. Para publicar a Fase 1 é preciso um host com Node (Render, Fly.io, VPS ou Codespaces).
+> O GitHub Pages não executa Node; continua com a Fase 0. Para publicar a Fase 1+ é preciso um host com Node.
