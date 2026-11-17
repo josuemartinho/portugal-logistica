@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: portugal-logistica
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: ""
+    startCommand: node server/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: PORT
+        value: 3000
+      - key: PTLOG_DB
+        value: /data/game.db
+    disk:
+      name: logistica-data
+      mountPath: /data
+      sizeGB: 1
