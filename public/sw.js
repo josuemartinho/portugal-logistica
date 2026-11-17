@@ -1,5 +1,5 @@
 /* Service worker — cache do "app shell"; a API nunca é cacheada (o servidor é a fonte da verdade). */
-const CACHE = "ptlog-v7.0.1-fase6";
+const CACHE = "ptlog-v8.0.0-fase7";
 const SHELL = ["/", "/index.html", "/app.js", "/styles.css", "/vendor/leaflet.js", "/vendor/leaflet.css", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", event => {
