@@ -2,7 +2,7 @@
 
 Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 
-## Estado atual (17/11/2026) — FASES 0–6 CONCLUÍDAS
+## Estado atual (17/11/2026) — FASES 0–7 CONCLUÍDAS
 
 - **Fase 0:** protótipo no GitHub Pages.
 - **Fase 1:** API + SQLite + contas + relógio do servidor.
@@ -11,9 +11,10 @@ Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 - **Fase 4:** ranking, conquistas, eventos mundiais e API pública com chaves.
 - **Fase 5:** PWA, configurações de deploy, testes automatizados e documentação final.
 - **Fase 6:** mapa Leaflet real, rotas OSRM em cache, 47 cidades, progressão local → regional → nacional.
+- **Fase 7:** mapa em aba própria, só rotas em execução, 167 POIs de clientes reais, estilos com fallback e persistência.
 - **Stack:** Node 26.13.1 (mínimo 22.5), SQLite nativo, zero dependências npm; Leaflet 1.9.4 servido localmente.
-- **API:** `/api/health` → `{"ok":true,"version":"7.0-fase6","publicApi":"/api/public/v1","pwa":true,"map":"leaflet-osrm"}`.
-- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v7.0.1-fase6`).
+- **API:** `/api/health` → `{"ok":true,"version":"8.0-fase7","publicApi":"/api/public/v1","pwa":true,"map":"leaflet-osrm","pois":true}`.
+- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v8.0.0-fase7`).
 - **Servidor:** `http://localhost:3000` e `http://192.168.1.252:3000`; exige PC ligado.
 
 ## Fase 6 — o que foi acrescentado
@@ -40,6 +41,15 @@ Validação no browser (servidor real, service worker e cache limpos): Leaflet a
 - Estilo satélite: `subdomains: undefined` fazia o Leaflet lançar `Cannot read properties of undefined (reading 'length')`; passou a `subdomains: c.subdomains || "abc"`.
 - Estilo claro: URL `positron` devolvia 404; corrigida para `light_all`.
 - Pool global de ofertas podia esgotar-se para bases novas → `refreshOffers()` passou a garantir 3 locais.
+
+## Fase 7 — mapa limpo e rede de clientes
+
+- **Estrutura:** `#tabs` saiu do painel lateral e passou a ser a navegação principal do `.app` (8 separadores: Mapa, Contratos, Armazéns, Frota, Equipa, Finanças, Mundo, Histórico). `#viewMap` e `#viewPanel` são mutuamente exclusivos via `syncViews()`/`setTab()`. A faixa `.ops`/`#strip` foi eliminada do HTML, do CSS ativo e de `render()`.
+- **Mapa:** `layerState` reduzido a `trips`, `pois`, `assets`, `reach`. `renderMap()` desenha apenas viagens com `!processed_at` (traçado OSRM + progresso) e POIs; ofertas, histórico e leaderboard deixaram de aparecer no mapa. `fitNetwork()` usa base + rotas ativas + POIs visíveis.
+- **POIs:** `server/game.js` exporta `POI_CATEGORIES` (7 categorias) e `POIS` (167 pontos: 11 destacados + gerados por cidade). `db.getState()` expõe `geo.poiCategories` e `geo.pois`. `renderPoiFilters()`/`togglePoiCat()` filtram por categoria; popup mostra marca, cidade e "Cliente em potencial".
+- **Estilos:** `applyMapStyle()` persiste em `localStorage.ptlog_map_style`, aplica ao arranque, troca de tiles com fallback em cascata (CARTO → OSM; Esri → Esri alternativo → OSM) após 5 `tileerror`, e define `.mapwrap[data-style]` com fundo próprio. SW registrado com `reg.update()` no arranque e em `visibilitychange`.
+- **Testes:** `npm test` → **15/15**. Browser: 167 marcadores e 7 filtros, 3 estilos com tiles carregados em desktop e iframe 390 px, troca Mapa ↔ Contratos sem faixa inferior, sem overflow em 320/390/1200 px, zero erros de consola.
+- **Nota:** autenticação continua intocada, conforme pedido do utilizador.
 
 ## Correção mobile (v7.0.1)
 
