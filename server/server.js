@@ -5,7 +5,8 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { db, tx, companyOf, getState, acceptOffer, buyVehicle, hireDriver, setSpeed, advance } = require("./db");
+const { db, tx, companyOf, getState, acceptOffer, buyVehicle, hireDriver, setSpeed, advance,
+  ensureBaseWarehouse, rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch } = require("./db");
 const { CFG, BASE_CITIES } = require("./game");
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -64,6 +65,7 @@ const routes = {
       db.prepare(`INSERT INTO companies(user_id,name,base_city,cash,now_ms,last_real_ms,last_day,speed,next_npc_at,created_at)
                   VALUES(?,?,?,?,?,?,?,1,?,?)`)
         .run(userId, name, base, CFG.capital, now, now, Math.floor(now/86400000), now+15*60000, now);
+      ensureBaseWarehouse(userId, base);
       return userId;
     });
     json(res, 200, { token:newSession(result), username });
@@ -81,7 +83,7 @@ const routes = {
     if (h.startsWith("Bearer ")) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash(h.slice(7)));
     json(res, 200, { ok:true });
   },
-  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"2.0-fase1" }),
+  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"3.0-fase2" }),
   "GET /api/state": async (req,res,company) => json(res, 200, getState(company.id)),
   "POST /api/offers/accept": async (req,res,company) => {
     const b = await body(req);
@@ -95,6 +97,31 @@ const routes = {
   "POST /api/speed": async (req,res,company) => {
     const b = await body(req);
     json(res, 200, setSpeed(company.id, b.speed));
+  },
+  // Fase 2
+  "POST /api/warehouses/rent": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, rentWarehouse(company.id, String(b.city||"")));
+  },
+  "POST /api/inventory/buy": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, buyStock(company.id, Number(b.warehouseId), Number(b.kg)));
+  },
+  "POST /api/inventory/sell": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, sellStock(company.id, Number(b.warehouseId), Number(b.kg)));
+  },
+  "POST /api/recurring/sign": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, signRecurring(company.id, String(b.routeId||"")));
+  },
+  "POST /api/recurring/cancel": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, cancelRecurring(company.id, b.id));
+  },
+  "POST /api/autodispatch": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, setAutoDispatch(company.id, !!b.on));
   }
 };
 
