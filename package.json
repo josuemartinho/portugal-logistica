@@ -1,10 +1,12 @@
 {
   "name": "portugal-logistica",
-  "version": "2.0.0",
+  "version": "6.0.0",
   "private": true,
-  "description": "Simulador de logística em Portugal — Fase 1 (API + SQLite)",
+  "description": "Simulador de logística em Portugal — API + SQLite + PWA, sem dependências externas",
   "scripts": {
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "test": "node --test tests/",
+    "health": "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>r.json()).then(console.log).catch(e=>{console.error(e.message);process.exit(1)})\""
   },
   "engines": {
     "node": ">=22.5.0"
