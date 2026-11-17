@@ -1,0 +1,12 @@
+{
+  "name": "portugal-logistica",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Simulador de logística em Portugal — Fase 1 (API + SQLite)",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
