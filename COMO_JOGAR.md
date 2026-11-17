@@ -1,6 +1,6 @@
-# Portugal Logística — Fase 5
+# Portugal Logística — Fase 6
 
-Versão com servidor, armazéns, economia dinâmica, ranking, conquistas, eventos mundiais e API pública. O protótipo da Fase 0 continua no GitHub Pages.
+Versão com servidor, armazéns, economia dinâmica, ranking, conquistas, API pública e **mapa real de Portugal com rotas rodoviárias**. O protótipo da Fase 0 continua no GitHub Pages.
 
 ## Arrancar
 
@@ -19,6 +19,25 @@ Abrir **http://localhost:3000** · Celular na mesma Wi-Fi: `http://192.168.1.252
 2. **Equipa** → contratar motorista. **Frota** → comprar veículo.
 3. **Mercado** → aceitar contrato → Reservar e partir. Use **60×/300×** para acelerar testes.
 4. **Finanças**: receitas, custos, margem, reputação, gasóleo e crédito.
+
+## Mapa real e expansão (Fase 6)
+
+O painel central é um mapa Leaflet com tiles reais (OpenStreetMap/CARTO). Não é um desenho esquemático: as 47 cidades estão nas suas coordenadas reais e as linhas seguem a geometria devolvida pelo OSRM.
+
+- **Estilos**: `Escuro` (por defeito), `Claro` e `Satélite`, no canto inferior esquerdo.
+- **Camadas**: ofertas, viagens, frota/armazéns, histórico, empresas e alcance — cada uma com interruptor próprio.
+- **Ver rede** ajusta o enquadramento a todas as operações visíveis.
+- **Base operacional** aparece no HUD com o nível atual; as viagens em curso mostram a posição interpolada sobre a rota real e a percentagem concluída.
+
+A empresa começa pequena:
+
+| Nível | Alcance | Como desbloquear |
+|---|---|---|
+| **Local** | 130 km | ponto de partida — só contratos perto da base |
+| **Regional** | 320 km | 5 entregas **ou** reputação 65 **ou** 2 armazéns |
+| **Nacional** | sem limite | 15 entregas **ou** reputação 80 **ou** 3 armazéns **ou** €50 000 em caixa |
+
+O cartão no topo do **Mercado** diz o que falta para o próximo nível. Só aparecem contratos dentro do alcance atual; o servidor garante pelo menos 3 ofertas locais por base. Quando uma rota real já está em cache, o custo e a duração usam os km por estrada.
 
 ## Armazéns (Fase 2)
 
@@ -58,18 +77,18 @@ Invoke-RestMethod -Uri http://localhost:3000/api/public/v1/stats -Headers @{ 'X-
 
 ## Separadores
 
-Mercado · Armazéns · Frota · Equipa · Finanças · Mundo · Histórico.
+Mercado · Armazéns · Frota · Equipa · Finanças · Mundo · Histórico. O mapa ocupa o painel principal em todos eles.
 
-## PWA e instalação (Fase 5)
+## PWA e instalação (Fases 5–6)
 
 - O jogo é instalável como aplicação: no Chrome/Edge, use **Instalar aplicação** no menu do endereço; no Android, **Adicionar ao ecrã inicial**.
-- Funciona em `localhost` ou em HTTPS. A interface abre offline (service worker), mas **os dados nunca são cacheados**: é preciso ligação ao servidor para jogar.
-- Ícone e ecrã de arranque usam `icon.svg` e `manifest.webmanifest`.
+- Funciona em `localhost` ou em HTTPS. O interface abre offline (service worker `ptlog-v7-fase6`), mas **os dados nunca são cacheados**: é preciso ligação ao servidor para jogar.
+- Os ficheiros do Leaflet fazem parte do app shell; os tiles e rotas exigem rede.
 
-## Testes e deploy (Fase 5)
+## Testes e deploy
 
 ```powershell
-npm test        # testes unitários + integração da API
+npm test        # 14 testes: unidades + integração da API + mapa/rotas
 npm run health  # confirma o servidor local
 ```
 
