@@ -2,50 +2,37 @@
 
 Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 
-## Estado atual (17/11/2026) — FASE 1 IMPLEMENTADA
+## Estado atual (17/11/2026) — FASE 2 CONCLUÍDA
 
-- **Projeto:** simulador de logística em Portugal.
-- **Fase 0:** protótipo `index.html` (single-file), publicado em `https://josuemartinho.github.io/portugal-logistica/`.
-- **Fase 1:** implementada em `server/` + `public/`; arranca com `npm start` em `http://localhost:3000`.
-- **Stack:** Node 26.13.1, SQLite nativo (`node:sqlite`), **zero dependências npm**.
-- **Servidor de testes Fase 0:** `http://192.168.1.252:8080/index.html`.
-- **API Fase 1:** `http://localhost:3000/api/health` → `{"ok":true,"version":"2.0-fase1"}`.
+- **Fase 0:** protótipo `index.html`, publicado no GitHub Pages.
+- **Fase 1:** API + SQLite + contas + relógio do servidor (`npm start`, porta 3000).
+- **Fase 2:** armazéns, stock, contratos recorrentes e expedição automática.
+- **Stack:** Node 26.13.1, SQLite nativo (`node:sqlite`), zero dependências npm.
+- **API:** `/api/health` → `{"ok":true,"version":"3.0-fase2"}`.
+- **Repo:** `josuemartinho/portugal-logistica` (main + tags de release por fase).
 
-## Arquitetura da Fase 1
+## Fase 2 — o que foi acrescentado
 
-- `server/game.js` — constantes do mundo, distâncias, ofertas, custos.
-- `server/db.js` — esquema SQLite, `advance()` (relógio), processamento de dias/entregas/NPCs, transações.
-- `server/server.js` — API REST, registo/login (scrypt), sessões de 30 dias, estáticos.
-- `public/` — cliente com mapa SVG redesenhado, navegação por ícones, cartões de contrato, finanças e timeline.
-- `data/game.db` — base de dados local (não versionar).
+- Tabelas `warehouses`, `stock`, `recurring`; colunas `kind`, `needs_stock`, `recurring_id` em ofertas e `stock_kg`, `stock_value`, `from_wh`, `to_wh` em viagens.
+- Sede recebe armazém gratuito no registo; filiais custam €800 + €120/mês (máx. 3).
+- Mercadoria comprada a €0,50/kg e vendida a €0,68/kg.
+- 5 rotas recorrentes no catálogo; cada uma gera uma oferta a cada 7 dias de tempo simulado.
+- Aceitar oferta recorrente debita stock na origem; na conclusão, credita stock no destino ou vende automaticamente.
+- `auto_dispatch`: o servidor reserva e envia contratos recorrentes quando há veículo, motorista e stock.
+- Cliente com 6 separadores (novo: **Armazéns**).
 
-## Garantias implementadas
+## Testes Fase 2 (todos verdes)
 
-- Relógio do servidor (`now_ms`) com avanço limitado a 30 dias de ausência.
-- Reserva atómica: veículo + motorista + oferta verificados e atualizados em `BEGIN IMMEDIATE`.
-- `trips.offer_id` UNIQUE impede reservar a mesma oferta duas vezes.
-- Eventos `trip_complete` com `processed_at` + movimentos com `UNIQUE(ref_type, ref_id)` garantem pagamento único, inclusive sob concorrência.
-- `INSERT OR IGNORE` em movimentos elimina corridas entre o timer do servidor e os pedidos.
-- Timer de 2 s processa entregas mesmo sem navegador aberto.
-
-## Testes realizados
-
-- Registo, login, estado inicial (€25 000, 11 ofertas).
-- Contratar motorista (€300) e comprar carrinha (€14 000) → caixa €10 700.
-- Aceitar contrato, acelerar para 300×, forçar vencimento: 1 entrega, receita €335, custo €139,50, **2 movimentos exatos**, caixa estável em consultas repetidas.
-- Veículo e motorista libertados no destino (Évora).
-- 24 pedidos concorrentes a `/api/state`: zero erros.
-- Interface no navegador: 4 KPIs, 5 separadores, 17 cidades, 11 cartões, zero erros de consola, sem overflow horizontal.
+Armazém inicial, compra de 300 kg (€150), caixa €10 550, geração de oferta recorrente, aceitação com stock, débito na origem, conclusão com receita €520, venda automática em Lisboa (€204), veículo livre no destino, expedição automática disparada. Interface: 6 separadores, 7 cartões, zero erros de consola, sem overflow.
 
 ## Decisões
 
-- Fase 1 roda localmente; o GitHub Pages continua com a Fase 0 porque Pages não executa Node.
-- Publicar a Fase 1 exige host com Node: Render/Fly.io/VPS/Codespaces.
-- Nenhuma integração automática Codex → OpenCode. Sincronização por este arquivo ou por cópia do texto.
+- GitHub Pages mantém a Fase 0 (não executa Node). Fase 1+ precisa de host com Node.
+- Publicação por GitHub API com tag + release a cada fase.
+- Sincronização Codex ↔ OpenCode por este arquivo.
 
-## Próximos passos
+## Próximas fases
 
-- [ ] Escolher host com Node e publicar a Fase 1.
-- [ ] Testes no celular contra `http://192.168.1.252:3000`.
-- [ ] Fase 2: expedição automática, warehouses com stock, contratos recorrentes, API pública.
-- [ ] Adicionar `.gitignore` para `data/`.
+- Fase 3: economia dinâmica (combustível, desgaste, reputação, crédito, impostos).
+- Fase 4: ranking, conquistas, eventos mundiais e API pública.
+- Fase 5: PWA, configuração de deploy, testes automatizados e documentação final.
