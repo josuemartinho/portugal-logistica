@@ -153,6 +153,20 @@ CREATE TABLE IF NOT EXISTS recurring (
   created_at INTEGER NOT NULL,
   UNIQUE(company_id, route_id)
 );
+CREATE TABLE IF NOT EXISTS market (
+  id INTEGER PRIMARY KEY CHECK (id=1),
+  fuel_price REAL NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS loans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  principal REAL NOT NULL,
+  balance REAL NOT NULL,
+  daily_rate REAL NOT NULL,
+  taken_at INTEGER NOT NULL,
+  closed_at INTEGER
+);
 `);
 
 /* Migrações leves — acrescentam colunas sem apagar dados existentes. */
@@ -169,6 +183,12 @@ addColumn("trips", "stock_kg", "REAL NOT NULL DEFAULT 0");
 addColumn("trips", "stock_value", "REAL NOT NULL DEFAULT 0");
 addColumn("trips", "from_wh", "INTEGER");
 addColumn("trips", "to_wh", "INTEGER");
+addColumn("companies", "reputation", "REAL NOT NULL DEFAULT 50");
+addColumn("vehicles", "condition", "REAL NOT NULL DEFAULT 100");
+
+if (db.prepare("SELECT 1 FROM market WHERE id=1").get() === undefined) {
+  db.prepare("INSERT INTO market(id,fuel_price,updated_at) VALUES(1,?,?)").run(G.fuelPrice(Date.now()), Date.now());
+}
 
 if (db.prepare("SELECT COUNT(*) n FROM npcs").get().n === 0) {
   const ins = db.prepare("INSERT INTO npcs(name,cash) VALUES(?,?)");
@@ -217,6 +237,10 @@ function processDays(companyId, now, fromDay, createdAt){
       move(companyId, "cost", `Aluguer base/armazéns + ordenados · ${new Date(day*86400000).toLocaleDateString("pt-PT")}`, -total, day*86400000, "daily", String(day));
       log(companyId, "info", `Despesas do dia: €${total.toFixed(2)}`, day*86400000);
     }
+    for (const l of db.prepare("SELECT * FROM loans WHERE company_id=? AND closed_at IS NULL").all(companyId)) {
+      const interest = round(l.balance*l.daily_rate);
+      if (interest > 0) move(companyId, "cost", `Juros do empréstimo #${l.id}`, -interest, day*86400000, "loanint", l.id+"_"+day);
+    }
     db.prepare("UPDATE companies SET last_day=? WHERE id=?").run(day, companyId);
   }
 }
@@ -234,6 +258,23 @@ function processEvents(companyId, now){
             .run(trip.to_city, trip.driver_id, companyId);
           move(companyId, "revenue", `Entrega ${trip.client} · ${trip.from_city} → ${trip.to_city}`, trip.price, now, "trip", "rev_"+trip.id);
           move(companyId, "cost", `Combustível, portagens e desgaste · ${trip.from_city} → ${trip.to_city}`, -trip.cost_cash, now, "trip", "cost_"+trip.id);
+          // Fase 3 — desgaste, avaria, reputação e imposto
+          const veh = db.prepare("SELECT condition FROM vehicles WHERE id=?").get(trip.vehicle_id);
+          const cond = Math.max(0, round((veh ? veh.condition : 100) - trip.km*CFG.wearPerKm));
+          db.prepare("UPDATE vehicles SET condition=? WHERE id=?").run(cond, trip.vehicle_id);
+          const broken = cond < CFG.breakdownAt;
+          if (broken) {
+            const fix = G.repairCost(cond);
+            move(companyId, "cost", `Avaria mecânica em ${trip.to_city}`, -fix, now, "break", "break_"+trip.id);
+            log(companyId, "bad", `Avaria ao chegar a ${trip.to_city}: €${fix.toFixed(2)}. Repare o veículo na Frota.`, now);
+          }
+          let rep = companyById(companyId).reputation;
+          rep = Math.min(100, Math.max(5, rep + (broken ? -CFG.repLoss : CFG.repGain)));
+          db.prepare("UPDATE companies SET reputation=? WHERE id=?").run(round(rep), companyId);
+          const bonus = round(trip.price*(rep-50)*0.002);
+          if (Math.abs(bonus) >= 0.01) move(companyId, bonus>=0?"revenue":"cost", `Ajuste de reputação (${Math.round(rep)})`, bonus, now, "rep", "rep_"+trip.id);
+          const tax = round(trip.price*CFG.taxRate);
+          if (tax > 0) move(companyId, "cost", `Imposto simplificado 6% · ${trip.client}`, -tax, now, "tax", "tax_"+trip.id);
           if (trip.kind === "recurring" && trip.stock_kg > 0) {
             const wh = trip.to_wh ? db.prepare("SELECT id FROM warehouses WHERE id=? AND company_id=?").get(trip.to_wh, companyId)
                                   : db.prepare("SELECT id FROM warehouses WHERE company_id=? AND city=?").get(companyId, trip.to_city);
@@ -303,7 +344,7 @@ function processNpcs(companyId, now){
     db.prepare("UPDATE npcs SET cash=? WHERE id=?").run(round(npc.cash-o.price*0.75), npc.id);
     log(companyId, "bad", `${npc.name} ganhou o contrato ${o.client} (${o.from_city} → ${o.to_city})`, now);
   }
-  db.prepare("DELETE FROM offers WHERE status!='open' AND expires_at<?").run(now-3600000);
+  db.prepare("DELETE FROM offers WHERE status!='open' AND expires_at<? AND id NOT IN (SELECT offer_id FROM trips)").run(now-3600000);
 }
 function refreshOffers(now){
   const open = db.prepare("SELECT COUNT(*) n FROM offers WHERE status='open' AND expires_at>?").get(now).n;
@@ -340,7 +381,8 @@ function getState(companyId){
   advance(companyId);
   const c = companyById(companyId);
   const offers = db.prepare("SELECT * FROM offers WHERE status='open' AND expires_at>? ORDER BY expires_at").all(c.now_ms)
-    .map(o => ({ ...o, window: hhmm(o.created_at+2*3600000)+" – "+hhmm(o.created_at+8*3600000) }));
+    .map(o => ({ ...o, window: hhmm(o.created_at+2*3600000)+" – "+hhmm(o.created_at+8*3600000),
+                 repBonus:Math.round((c.reputation-50)*0.2) }));
   const trips = db.prepare("SELECT * FROM trips WHERE company_id=? ORDER BY id DESC LIMIT 20").all(companyId);
   const movements = db.prepare("SELECT * FROM movements WHERE company_id=? ORDER BY id DESC LIMIT 60").all(companyId);
   const logRows = db.prepare("SELECT * FROM event_log WHERE company_id=? ORDER BY id DESC LIMIT 40").all(companyId);
@@ -353,7 +395,9 @@ function getState(companyId){
     FROM warehouses w LEFT JOIN stock s ON s.warehouse_id=w.id WHERE w.company_id=? ORDER BY w.id`).all(companyId);
   return {
     company: { name:c.name, base:c.base_city, cash:round(c.cash), now:c.now_ms, speed:c.speed,
-               createdAt:c.created_at, autoDispatch:!!c.auto_dispatch },
+               createdAt:c.created_at, autoDispatch:!!c.auto_dispatch, reputation:round(c.reputation) },
+    market: { fuelPrice:G.fuelPrice(c.now_ms), taxRate:CFG.taxRate },
+    loans: db.prepare("SELECT * FROM loans WHERE company_id=? ORDER BY id DESC").all(companyId),
     vehicles: db.prepare("SELECT * FROM vehicles WHERE company_id=? ORDER BY id").all(companyId),
     drivers: db.prepare("SELECT * FROM drivers WHERE company_id=? ORDER BY id").all(companyId),
     warehouses,
@@ -388,7 +432,9 @@ function acceptOfferTx(companyId, offerId, vehicleId, driverId){
     db.prepare("UPDATE stock SET kg=round(kg-?,2), value=round(value-?,2) WHERE warehouse_id=?")
       .run(o.kg, stockValue, fromWh.id);
   }
-  const cost = estimate(o.km, o.kg, true);
+  const fuelNow = G.fuelPrice(c.now_ms);
+  db.prepare("UPDATE market SET fuel_price=?,updated_at=? WHERE id=1").run(fuelNow, Date.now());
+  const cost = estimate(o.km, o.kg, true, fuelNow);
   if (c.cash < cost.cash) throw Error("Caixa insuficiente para os custos estimados.");
   const start = c.now_ms, end = start + travelMs(o.km);
   const info = db.prepare(`INSERT INTO trips(company_id,offer_id,client,from_city,to_city,km,price,cost_cash,cost_economic,
@@ -515,6 +561,54 @@ function setSpeed(companyId, speed){
   return { ok:true };
 }
 
+function takeLoan(companyId, amount){
+  advance(companyId);
+  return tx(() => {
+    const c = companyById(companyId);
+    const amt = Math.round(Number(amount)/100)*100;
+    if (amt < 500) throw Error("Valor mínimo: €500.");
+    if (amt > CFG.loanMax) throw Error("Valor máximo: €20 000.");
+    if (db.prepare("SELECT COUNT(*) n FROM loans WHERE company_id=? AND closed_at IS NULL").get(companyId).n >= 3) throw Error("Limite de 3 empréstimos atingido.");
+    const fee = round(amt*CFG.loanFee);
+    const r = db.prepare("INSERT INTO loans(company_id,principal,balance,daily_rate,taken_at) VALUES(?,?,?,?,?)")
+      .run(companyId, amt, round(amt+fee), CFG.loanDaily, c.now_ms);
+    move(companyId, "revenue", `Empréstimo #${r.lastInsertRowid} recebido`, amt, c.now_ms, "loan", "loan_in_"+r.lastInsertRowid);
+    log(companyId, "info", `Empréstimo de €${amt} com taxa de abertura €${fee}`, c.now_ms);
+    return { ok:true, id:Number(r.lastInsertRowid) };
+  });
+}
+function repayLoan(companyId, id, amount){
+  advance(companyId);
+  return tx(() => {
+    const c = companyById(companyId);
+    const l = db.prepare("SELECT * FROM loans WHERE id=? AND company_id=?").get(Number(id), companyId);
+    if (!l || l.closed_at !== null) throw Error("Empréstimo inválido.");
+    const pay = Math.min(l.balance, round(Number(amount)));
+    if (pay < 1) throw Error("Valor inválido.");
+    if (c.cash < pay) throw Error("Caixa insuficiente.");
+    move(companyId, "cost", `Amortização do empréstimo #${l.id}`, -pay, c.now_ms, "loan", "loan_pay_"+l.id+"_"+Date.now());
+    const bal = round(l.balance-pay);
+    db.prepare("UPDATE loans SET balance=?,closed_at=? WHERE id=?").run(bal, bal<=0?c.now_ms:null, l.id);
+    return { ok:true, closed:bal<=0 };
+  });
+}
+function repairVehicle(companyId, vehicleId){
+  advance(companyId);
+  return tx(() => {
+    const c = companyById(companyId);
+    const v = db.prepare("SELECT * FROM vehicles WHERE id=? AND company_id=?").get(Number(vehicleId), companyId);
+    if (!v) throw Error("Veículo inválido.");
+    const cost = G.repairCost(v.condition);
+    if (cost < 1) throw Error("O veículo já está em bom estado.");
+    if (c.cash < cost) throw Error("Caixa insuficiente para a reparação.");
+    move(companyId, "cost", `Reparação de ${VANS[v.model].name}`, -cost, c.now_ms, "repair", "repair_"+vehicleId+"_"+Date.now());
+    db.prepare("UPDATE vehicles SET condition=100 WHERE id=? AND company_id=?").run(v.id, companyId);
+    log(companyId, "info", `${VANS[v.model].name} reparado por €${cost.toFixed(2)}`, c.now_ms);
+    return { ok:true, cost };
+  });
+}
+
 module.exports = { db, tx, companyOf, companyById, ensureBaseWarehouse, getState, acceptOffer,
   buyVehicle, hireDriver, setSpeed, advance, log,
-  rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch };
+  rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch,
+  takeLoan, repayLoan, repairVehicle };
