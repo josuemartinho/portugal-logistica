@@ -552,7 +552,8 @@ function getState(companyId){
                createdAt:c.created_at, autoDispatch:!!c.auto_dispatch, reputation:round(c.reputation),
                tier:expansion.tier.key, tierName:expansion.tier.name, reachKm:expansion.tier.reachKm },
     expansion,
-    geo: { cities:G.CITIES, tiers:G.TIERS, base:G.city(c.base_city) },
+    geo: { cities:G.CITIES, tiers:G.TIERS, base:G.city(c.base_city),
+           poiCategories:G.POI_CATEGORIES, pois:G.POIS },
     market: { fuelPrice:G.fuelPrice(c.now_ms), taxRate:CFG.taxRate,
               event: (()=>{ const m=db.prepare("SELECT event_type,event_message,event_until,fuel_mod,price_mod,time_mod FROM market WHERE id=1").get();
                             return m && m.event_type ? { ...m, message:m.event_message, active:m.event_until>c.now_ms,
