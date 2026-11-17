@@ -4,7 +4,7 @@
 const TOKEN_KEY = "ptlog_fase1_token";
 let token = localStorage.getItem(TOKEN_KEY) || null;
 let S = null, tab = "mercado", authMode = "login";
-const ui = { qty:{}, whCity:"Évora" };
+const ui = { qty:{}, whCity:"Évora", loanAmt:2000 };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -29,6 +29,8 @@ const I = {
   box:'<svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10"/></svg>',
   warehouse:'<svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12M3 21h18M8 21v-7h8v7M8 10h8"/></svg>',
   repeat:'<svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg>',
+  fuel:'<svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M6 8h6M17 21V9l3 3v9M17 13h3"/></svg>',
+  star:'<svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 7 1-5 4.9 1.2 7L12 18l-6.2 3.2L7 14.2 2 9.3l7-1z"/></svg>',
   check:'<svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>',
   plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   shield:'<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>'
@@ -236,7 +238,9 @@ function renderTop(){
     `<div class="kpi"><i>${I.cash}</i><div class="ktext"><span class="kval">${money(S.company.cash)}</span><span class="klbl">Caixa</span></div></div>`+
     `<div class="kpi"><i>${I.clock}</i><div class="ktext"><span class="kval">${dt(S.company.now)}</span><span class="klbl">Data / hora</span></div></div>`+
     `<div class="kpi warn"><i>${I.truck}</i><div class="ktext"><span class="kval">${active}</span><span class="klbl">Em viagem</span></div></div>`+
-    `<div class="kpi ${margin>=0?"good":"neg"}"><i>${I.trend}</i><div class="ktext"><span class="kval">${money(margin)}</span><span class="klbl">Margem</span></div></div>`;
+    `<div class="kpi ${margin>=0?"good":"neg"}"><i>${I.trend}</i><div class="ktext"><span class="kval">${money(margin)}</span><span class="klbl">Margem</span></div></div>`+
+    `<div class="kpi"><i>${I.fuel}</i><div class="ktext"><span class="kval">${(S.market?S.market.fuelPrice:1.75).toFixed(2).replace(".",",")} €/L</span><span class="klbl">Gasóleo</span></div></div>`+
+    `<div class="kpi ${S.company.reputation>=70?"good":""}"><i>${I.star}</i><div class="ktext"><span class="kval">${Math.round(S.company.reputation)}/100</span><span class="klbl">Reputação</span></div></div>`;
   $("speed").innerHTML=[1,60,300].map(v=>`<button class="${S.company.speed===v?"on":""}" onclick="setSpeed(${v})">${v===1?"1×":v+"×"}</button>`).join("");
 }
 function renderStrip(){
@@ -273,14 +277,15 @@ function tabMarket(){
       const stockOk=!o.needs_stock||(wh&&wh.kg>=o.kg);
       const ok=freeVans.some(v=>VANS[v.model].kg>=o.kg&&VANS[v.model].m3>=o.m3)&&freeDrivers.length>0&&stockOk;
       const left=clamp((o.expires_at-S.company.now)/(o.expires_at-o.created_at),0,1);
-      const est=Math.round(o.km/100*8*1.75 + o.km*.6*.10 + o.km*.10);
+      const fuel=S.market?S.market.fuelPrice:1.75;
+      const est=Math.round(o.km/100*8*fuel + o.km*.6*.10 + o.km*.10);
       const margin=o.price-est;
       return `<div class="card"><div class="card-head">
           <div class="avatar">${esc(inicial)}</div>
           <div class="card-title"><strong>${esc(o.client)}</strong><small>${o.kind==="recurring"?"Recorrente · ":"Contrato · "}${esc(o.from_city)} → ${esc(o.to_city)}</small></div>
           <div class="big-price"><small>receita</small><strong>${price}</strong></div></div>
         <div class="route"><div class="route-city"><small>Origem</small><strong>${esc(o.from_city)}</strong></div><div class="route-line"></div><div class="route-city right"><small>Destino</small><strong>${esc(o.to_city)}</strong></div></div>
-        <div class="chips"><span class="chip">${o.km} km</span><span class="chip">${o.kg} kg</span><span class="chip">${o.m3} m³</span><span class="chip">${esc(o.window)}</span>${o.needs_stock?`<span class="chip" style="color:${stockOk?"var(--green)":"var(--red)"}">stock ${Math.round(wh?wh.kg:0)} kg</span>`:""}</div>
+        <div class="chips"><span class="chip">${o.km} km</span><span class="chip">${o.kg} kg</span><span class="chip">${o.m3} m³</span><span class="chip">${esc(o.window)}</span>${o.repBonus?`<span class="chip" style="color:${o.repBonus>0?"var(--green)":"var(--red)"}">rep ${o.repBonus>0?"+":""}${o.repBonus}%</span>`:""}${o.needs_stock?`<span class="chip" style="color:${stockOk?"var(--green)":"var(--red)"}">stock ${Math.round(wh?wh.kg:0)} kg</span>`:""}</div>
         <div class="card-foot">
           <div><div class="metric"><small>margem estimada</small><strong class="${margin>=0?"":"neg"}" style="${margin>=0?"color:var(--green)":""}">${money(margin)}</strong></div>
             <div class="hint">custo de caixa ≈ ${money(est)}</div></div>
@@ -328,7 +333,11 @@ function tabFleet(){
     return `<div class="card"><div class="card-head"><div class="avatar ${busy?"a":"g"}">${I.fleet.replace('<svg','<svg style="width:18px;height:18px"')}</div>
       <div class="card-title"><strong>${esc(spec.name)}</strong><small>${busy?"Em viagem":"Disponível"} · em ${esc(v.at_city)}</small></div>
       <span class="chip">${Number(v.km).toLocaleString("pt-PT")} km</span></div>
-      <div class="chips" style="margin-top:10px"><span class="chip">${spec.kg} kg</span><span class="chip">${spec.m3} m³</span><span class="chip">${spec.l100} L/100km</span></div></div>`;
+      <div class="chips" style="margin-top:10px"><span class="chip">${spec.kg} kg</span><span class="chip">${spec.m3} m³</span><span class="chip">${spec.l100} L/100km</span></div>
+      <div class="metric" style="margin-top:11px"><small>estado mecânico · ${Math.round(v.condition)}%</small>
+        <div class="op-bar"><i style="width:${v.condition}%;background:${v.condition<35?"var(--red)":v.condition<60?"var(--amber)":"var(--green)"}"></i></div></div>
+      <div class="card-foot"><span class="hint">${v.condition<35?"Avaria iminente — repare antes de viajar.":"Reparação: "+money(Math.max(0,Math.round((100-v.condition)*12)))}</span>
+        <button class="btn ghost sm" onclick="repairV(${v.id})" ${v.condition>=99?"disabled":""}>Reparar</button></div></div>`;
   }).join("");
   const buy=Object.entries(VANS).map(([k,v])=>`<div class="card"><div class="card-head">
       <div class="avatar">${I.plus}</div><div class="card-title"><strong>${v.name}</strong><small>${v.kg} kg · ${v.m3} m³ · ${v.l100} L/100km</small></div>
@@ -363,7 +372,19 @@ function tabFinance(){
       <div class="stat"><small>Custos de viagem</small><strong style="color:var(--red)">${money(st.costs)}</strong></div>
       <div class="stat good"><small>Margem acumulada</small><strong>${money(st.margin)}</strong></div>
       <div class="stat"><small>Entregas</small><strong>${st.deliveries}</strong></div>
+      <div class="stat ${S.company.reputation>=70?"good":""}"><small>Reputação</small><strong>${Math.round(S.company.reputation)}/100</strong></div>
+      <div class="stat"><small>Gasóleo atual</small><strong>${S.market.fuelPrice.toFixed(2).replace(".",",")} €/L</strong></div>
     </div>
+    <p class="lead">Bónus/malus de reputação: ${S.offers[0]?S.offers[0].repBonus:Math.round((S.company.reputation-50)*0.2)}% no valor de cada entrega. Imposto simplificado: ${Math.round(S.market.taxRate*100)}%.</p>
+    <div class="subhead">Crédito</div>
+    ${S.loans.length?S.loans.map(l=>`<div class="card"><div class="card-head"><div class="avatar a">€</div>
+      <div class="card-title"><strong>Empréstimo #${l.id}</strong><small>${l.closed_at?"Liquidado":"Juros 0,5%/dia"} · recebido ${money(l.principal)}</small></div>
+      <div class="big-price"><small>em dívida</small><strong style="${l.closed_at?"color:var(--green)":""}">${money(l.balance)}</strong></div></div>
+      ${l.closed_at?"":`<div class="card-foot"><input class="qty" type="number" min="100" step="100" value="${ui.qty["loan"+l.id]||500}" oninput="ui.qty['loan'+${l.id}]=this.value">
+        <button class="btn primary sm" onclick="repayL(${l.id})">Amortizar</button></div>`}</div>`).join(""):empty("Sem empréstimos","Pode pedir até €20 000 com taxa de abertura de 3%.")}
+    <div class="card"><div class="card-head"><div class="avatar">${I.finance}</div><div class="card-title"><strong>Novo empréstimo</strong><small>Taxa de abertura 3% · juros 0,5%/dia · máx. 3 ativos</small></div></div>
+      <div class="card-foot"><input class="qty" type="number" min="500" step="100" value="${ui.loanAmt||2000}" oninput="ui.loanAmt=this.value">
+        <button class="btn ghost sm" onclick="takeL()">Pedir empréstimo</button></div></div>
     <div class="subhead">Movimentos recentes</div>
     ${S.movements.length?S.movements.map(m=>`<div class="mov ${m.amount<0?"cost":""}">
       <div class="mov-ico">${m.amount>=0?"+":"−"}</div>
@@ -385,11 +406,15 @@ function buyWh(id){ act(()=>api("/api/inventory/buy","POST",{warehouseId:id,kg:N
 function sellWh(id){ act(()=>api("/api/inventory/sell","POST",{warehouseId:id,kg:Number(ui.qty[id]||100)})); }
 function signRec(routeId){ act(()=>api("/api/recurring/sign","POST",{routeId})); }
 function cancelRec(id){ act(()=>api("/api/recurring/cancel","POST",{id})); }
+function takeL(){ act(()=>api("/api/loans/take","POST",{amount:Number(ui.loanAmt||2000)})); }
+function repayL(id){ act(()=>api("/api/loans/repay","POST",{id,amount:Number(ui.qty["loan"+id]||500)})); }
+function repairV(id){ act(()=>api("/api/vehicles/repair","POST",{vehicleId:id})); }
 function openAccept(id){
   const o=S.offers.find(x=>x.id===id); if(!o) return;
   const vans=S.vehicles.filter(v=>v.status==="idle"&&VANS[v.model].kg>=o.kg&&VANS[v.model].m3>=o.m3);
   const drivers=S.drivers.filter(d=>d.status==="idle");
-  const fuel=o.km/100*8*1.75, toll=o.km*.6*.10, wear=o.km*.10, cash=fuel+toll+wear;
+  const diesel=S.market?S.market.fuelPrice:1.75;
+  const fuel=o.km/100*8*diesel, toll=o.km*.6*.10, wear=o.km*.10, cash=fuel+toll+wear;
   const hours=o.km/65, economic=cash+1500*1.22/30/8*hours+350/30/8*hours;
   modal(`<div class="modal-ico">${I.box}</div><h2>Aceitar contrato</h2><p class="sub">${esc(o.client)} · ${esc(o.from_city)} → ${esc(o.to_city)}</p>
     <div class="summary">
