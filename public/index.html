@@ -53,7 +53,10 @@
             <label><input type="checkbox" data-layer="companies" checked> Empresas</label>
             <label><input type="checkbox" data-layer="reach" checked> Alcance</label>
           </div>
-          <button class="btn ghost sm" onclick="fitNetwork()">Ver rede</button>
+          <div class="maptools-actions">
+            <button class="btn ghost sm layers-btn" id="btnLayers" aria-expanded="false" aria-controls="layerToggles" onclick="toggleLayers()">Camadas</button>
+            <button class="btn ghost sm" onclick="fitNetwork()">Ver rede</button>
+          </div>
         </div>
         <div class="hud">
           <div class="hud-lbl">BASE OPERACIONAL</div>
