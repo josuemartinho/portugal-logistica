@@ -3,7 +3,7 @@
 
 const TOKEN_KEY = "ptlog_fase1_token";
 let token = localStorage.getItem(TOKEN_KEY) || null;
-let S = null, tab = "mercado", authMode = "login";
+let S = null, tab = "mapa", authMode = "login";
 const ui = { qty:{}, whCity:"Évora", loanAmt:2000, keyLabel:"" };
 
 const $ = id => document.getElementById(id);
@@ -20,6 +20,7 @@ const I = {
   truck:'<svg viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7z"/><circle cx="6.5" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
   trend:'<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>',
   market:'<svg viewBox="0 0 24 24"><path d="M3 9h18l-1.5-5h-15zM5 9v11h14V9M9 20v-6h6v6"/></svg>',
+  map:'<svg viewBox="0 0 24 24"><path d="M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3zM9 3v15M15 6v15"/></svg>',
   fleet:'<svg viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7z"/><circle cx="6.5" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
   team:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 20v-2a5 5 0 0 0-3-4.6"/></svg>',
   finance:'<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
@@ -46,14 +47,21 @@ const VANS = { van:{name:"Carrinha",price:14000,kg:800,m3:4,l100:8}, truck:{name
 /* ---------- mapa real (Leaflet + OSM/CARTO + OSRM) ---------- */
 let map = null, activeBase = null, overlays = null, mapReady = false, fitDone = false;
 const routeGeom = new Map(), requestedRoutes = new Set();
-const mapStyle = "dark";
-const layerState = { offers:true, trips:true, assets:true, history:true, companies:true, reach:true };
+const STYLE_KEY = "ptlog_map_style";
+let mapStyle = localStorage.getItem(STYLE_KEY) || "dark";
+if (!TILE_STYLES_VALID(mapStyle)) mapStyle = "dark";
+function TILE_STYLES_VALID(k){ return k === "dark" || k === "light" || k === "sat"; }
+const layerState = { trips:true, pois:true, assets:true, reach:true };
+const poiVisible = {};
 const TILE_STYLES = {
   dark: { url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains:"abcd", maxZoom:19,
+          fallback:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
   light:{ url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains:"abcd", maxZoom:19,
+          fallback:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
   sat:  { url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", maxZoom:18,
+          fallback:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
           attribution:'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics' }
 };
 const cityOf = n => (S && S.geo ? S.geo.cities : []).find(c => c.n === n);
@@ -128,23 +136,36 @@ function showAuth(){
 }
 
 /* ---------- mapa real ---------- */
+function applyMapStyle(key, persist){
+  if (!map || !TILE_STYLES[key]) return;
+  mapStyle = key;
+  if (persist) { try { localStorage.setItem(STYLE_KEY,key); } catch(e){} }
+  const c = TILE_STYLES[key];
+  const urls = [c.url, c.fallback, "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"].filter(Boolean);
+  if (activeBase) map.removeLayer(activeBase);
+  let idx = 0, errors = 0;
+  activeBase = L.tileLayer(urls[0], { subdomains:c.subdomains||"abc", maxZoom:c.maxZoom, attribution:c.attribution }).addTo(map);
+  activeBase.on("tileerror", () => {
+    if (++errors < 5 || idx >= urls.length - 1) return;
+    idx++; errors = 0;
+    map.removeLayer(activeBase);
+    activeBase = L.tileLayer(urls[idx], { subdomains:c.subdomains||"abc", maxZoom:c.maxZoom, attribution:c.attribution }).addTo(map);
+  });
+  const wrap = document.querySelector(".mapwrap");
+  if (wrap) wrap.dataset.style = key;
+  document.querySelectorAll("#mapStyles button").forEach(x => x.classList.toggle("on", x.dataset.style === key));
+  map.invalidateSize();
+}
 function initMap(){
   if (map || typeof L === "undefined") return;
   map = L.map("map", { zoomControl:false, attributionControl:true, preferCanvas:true, minZoom:5, maxZoom:18 })
          .setView([39.6,-8.2],6);
   L.control.zoom({ position:"bottomright" }).addTo(map);
-  const st = TILE_STYLES[mapStyle];
-  activeBase = L.tileLayer(st.url, { subdomains:st.subdomains||"abc", maxZoom:st.maxZoom, attribution:st.attribution }).addTo(map);
   overlays = {};
   for (const k of Object.keys(layerState)) overlays[k] = L.layerGroup().addTo(map);
+  applyMapStyle(mapStyle, false);
   document.querySelectorAll("#mapStyles button").forEach(b => {
-    b.onclick = () => {
-      if (!TILE_STYLES[b.dataset.style]) return;
-      map.removeLayer(activeBase);
-      const c = TILE_STYLES[b.dataset.style];
-      activeBase = L.tileLayer(c.url, { subdomains:c.subdomains||"abc", maxZoom:c.maxZoom, attribution:c.attribution }).addTo(map);
-      document.querySelectorAll("#mapStyles button").forEach(x => x.classList.toggle("on", x === b));
-    };
+    b.onclick = () => applyMapStyle(b.dataset.style, true);
   });
   document.querySelectorAll("#layerToggles input").forEach(i => {
     i.onchange = () => { layerState[i.dataset.layer] = i.checked; if (S) renderMap(); };
@@ -152,9 +173,11 @@ function initMap(){
   mapReady = true;
 }
 function toggleLayers(){
-  const panel = $("layerToggles"), btn = $("btnLayers");
+  const panel = $("layerToggles"), filters = $("poiFilters"), btn = $("btnLayers");
   if (!panel || !btn) return;
-  const open = panel.classList.toggle("open");
+  const open = !panel.classList.contains("open");
+  panel.classList.toggle("open", open);
+  if (filters) filters.classList.toggle("open", open);
   btn.setAttribute("aria-expanded", String(open));
 }
 function fitNetwork(){
@@ -162,8 +185,8 @@ function fitNetwork(){
   const pts = [];
   const add = n => { const c = cityOf(n); if (c) pts.push([c.la,c.lo]); };
   add(S.company.base);
-  S.offers.forEach(o => { add(o.from_city); add(o.to_city); });
   S.trips.filter(t => !t.processed_at).forEach(t => { add(t.from_city); add(t.to_city); });
+  (S.geo.pois||[]).forEach(p => { if (poiVisible[p.cat] !== false && Number.isFinite(p.la) && Number.isFinite(p.lo)) pts.push([p.la,p.lo]); });
   if (pts.length > 1) map.fitBounds(pts, { padding:[46,46], maxZoom:9 });
   else if (pts.length) map.setView(pts[0], 8);
 }
@@ -219,6 +242,7 @@ function renderMap(){
   const color = (S.geo.tiers.find(t => t.key === tier.key) || {}).color || "#36d99a";
   $("hudTier").innerHTML = `<b style="color:${color}">${esc(tier.name)}</b> · ${reach > 10000 ? "sem limite" : Math.round(reach)+" km"}`;
   $("mapHint").textContent = (S.company.speed>1 ? "demo "+S.company.speed+"× · " : "tempo real · ") + realCount+" rotas reais";
+  $("mapCount").innerHTML = `<b>${active}</b> rota(s) em execução<br>${(S.geo.pois||[]).length} clientes no mapa`;
 
   for (const k of Object.keys(overlays)) overlays[k].clearLayers();
 
@@ -228,8 +252,7 @@ function renderMap(){
   }
 
   const endpoints = new Set([S.company.base]);
-  S.offers.forEach(o => { endpoints.add(o.from_city); endpoints.add(o.to_city); });
-  S.trips.forEach(t => { endpoints.add(t.from_city); endpoints.add(t.to_city); });
+  S.trips.filter(t => !t.processed_at).forEach(t => { endpoints.add(t.from_city); endpoints.add(t.to_city); });
   S.warehouses.forEach(w => endpoints.add(w.city));
   for (const c of S.geo.cities) {
     const isBase = S.company.base === c.n;
@@ -240,16 +263,6 @@ function renderMap(){
     }).bindTooltip(isBase ? `<b>${esc(c.n)}</b> · sede` : esc(c.n), { direction:"top", offset:[0,-5],
         permanent:isBase || endpoints.has(c.n), className:"city-tip" });
     m.addTo(overlays.assets);
-  }
-
-  if (layerState.companies) {
-    for (const r of S.leaderboard.rows) {
-      const c = cityOf(r.base_city);
-      if (!c || r.name === S.company.name) continue;
-      L.marker([c.la,c.lo], { icon:L.divIcon({ className:"", html:iconHtml("co","●",r.name), iconSize:[14,14], iconAnchor:[7,7] }) })
-       .bindTooltip(`<b>${esc(r.name)}</b><br>${esc(r.base_city)} · ${money(r.cash)}`, { direction:"top" })
-       .addTo(overlays.companies);
-    }
   }
 
   if (layerState.assets) {
@@ -273,17 +286,6 @@ function renderMap(){
   }
 
   const pairs = [];
-  if (layerState.offers) {
-    for (const o of S.offers) {
-      const a = cityOf(o.from_city), b = cityOf(o.to_city); if (!a || !b) continue;
-      pairs.push([o.from_city,o.to_city]);
-      const line = lineFor(o.from_city,o.to_city, { color, weight:2, opacity:.45, dashArray:"5 9" });
-      if (line) line.bindTooltip(`<b>${esc(o.client)}</b><br>${esc(o.from_city)} → ${esc(o.to_city)}<br>${o.km} km · ${money(o.price)}`, { sticky:true }).addTo(overlays.offers);
-      L.circleMarker([a.la,a.lo], { radius:3, color, fillColor:"#08111c", fillOpacity:1, weight:2 }).addTo(overlays.offers);
-      L.circleMarker([b.la,b.lo], { radius:4, color, fillColor:color, fillOpacity:.55, weight:2 }).addTo(overlays.offers);
-    }
-  }
-
   if (layerState.trips) {
     for (const t of S.trips.filter(t => !t.processed_at)) {
       const a = cityOf(t.from_city), b = cityOf(t.to_city); if (!a || !b) continue;
@@ -301,16 +303,42 @@ function renderMap(){
     }
   }
 
-  if (layerState.history) {
-    for (const t of S.trips.filter(t => t.processed_at).slice(0,12)) {
-      if (!cityOf(t.from_city) || !cityOf(t.to_city)) continue;
-      pairs.push([t.from_city,t.to_city]);
-      const line = lineFor(t.from_city,t.to_city, { color:"#6f93aa", weight:1.2, opacity:.28 });
-      if (line) line.bindTooltip(`${esc(t.client)} · ${esc(t.from_city)} → ${esc(t.to_city)}`, { sticky:true }).addTo(overlays.history);
+  if (layerState.pois) {
+    renderPoiFilters();
+    const cats = new Map((S.geo.poiCategories||[]).map(c => [c.key,c]));
+    let shown = 0;
+    for (const p of (S.geo.pois||[])) {
+      if (poiVisible[p.cat] === false) continue;
+      const cat = cats.get(p.cat) || { color:"#a98bff", symbol:"•", name:p.cat };
+      const featured = !!p.featured;
+      const size = featured ? 28 : 22;
+      const icon = L.divIcon({ className:"poi-pin"+(featured?" featured":""),
+        html:`<b style="background:${cat.color}">${esc(cat.symbol)}</b>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
+      L.marker([p.la,p.lo], { icon, zIndexOffset:featured ? 400 : 0 })
+       .bindPopup(`<div class="poi-popup"><b>${esc(p.n)}</b><br><small>${esc(cat.name)} · ${esc(p.brand)} · ${esc(p.city)}</small><br><small>Cliente em potencial</small></div>`)
+       .bindTooltip(`<b>${esc(p.brand)}</b> · ${esc(p.city)}`, { direction:"top", offset:[0,-8] })
+       .addTo(overlays.pois);
+      shown++;
     }
+    $("mapCount").innerHTML = `<b>${active}</b> rota(s) em execução<br>${shown} clientes no mapa`;
   }
   requestRoutes(pairs);
   if (!fitDone && base) { fitDone = true; fitNetwork(); }
+}
+function renderPoiFilters(){
+  const host = $("poiFilters");
+  if (!host || !S || !S.geo.poiCategories) return;
+  const open = host.classList.contains("open");
+  host.innerHTML = S.geo.poiCategories.map(c => {
+    if (poiVisible[c.key] === undefined) poiVisible[c.key] = true;
+    const on = poiVisible[c.key];
+    return `<button type="button" class="${on?"on":""}" style="color:${on?c.color:""}" onclick="togglePoiCat('${c.key}')"><i style="background:${c.color}"></i>${esc(c.name)}</button>`;
+  }).join("");
+  host.classList.toggle("open", open);
+}
+function togglePoiCat(key){
+  poiVisible[key] = poiVisible[key] === false;
+  if (S) renderMap();
 }
 
 /* ---------- topo e operações ---------- */
@@ -328,27 +356,14 @@ function renderTop(){
     `<div class="kpi ${S.company.reputation>=70?"good":""}"><i>${I.star}</i><div class="ktext"><span class="kval">${Math.round(S.company.reputation)}/100</span><span class="klbl">Reputação</span></div></div>`;
   $("speed").innerHTML=[1,60,300].map(v=>`<button class="${S.company.speed===v?"on":""}" onclick="setSpeed(${v})">${v===1?"1×":v+"×"}</button>`).join("");
 }
-function renderStrip(){
-  const ts=S.trips.filter(t=>!t.processed_at);
-  if(!ts.length){ $("strip").innerHTML=empty("Sem operações ativas","Aceite um contrato no Mercado para começar."); return; }
-  $("strip").innerHTML=ts.map(t=>{
-    const p=clamp((S.company.now-t.start_at)/(t.end_at-t.start_at),0,1);
-    const phase=p<.12?"Preparação":p>.88?"Descarga":"Em viagem";
-    return `<div class="op"><div class="op-ico">${I.truck}</div><div class="op-main">
-      <div class="op-top"><strong>${esc(t.client)}</strong><span class="pill">${phase}</span></div>
-      <div class="op-sub">${esc(t.from_city)} → ${esc(t.to_city)} · chegada ${dt(t.end_at)}</div>
-      <div class="op-bar"><i style="width:${(p*100).toFixed(1)}%"></i></div></div>
-      <div class="op-right"><strong>${money(t.price)}</strong><small>${Math.round(p*100)}%</small></div></div>`;
-  }).join("");
-}
-
 /* ---------- separadores ---------- */
-const TABS=[["mercado","Mercado","market"],["armazens","Armazéns","warehouse"],["frota","Frota","fleet"],["equipa","Equipa","team"],["financas","Finanças","finance"],["mundo","Mundo","globe"],["log","Histórico","history"]];
+const TABS=[["mapa","Mapa","map"],["mercado","Contratos","market"],["armazens","Armazéns","warehouse"],["frota","Frota","fleet"],["equipa","Equipa","team"],["financas","Finanças","finance"],["mundo","Mundo","globe"],["log","Histórico","history"]];
 function renderTabs(){
   const count=S.offers.length, ach=S.achievements.length;
-  $("tabs").innerHTML=TABS.map(([k,n,ico])=>`<button class="tab ${tab===k?"on":""}" onclick="setTab('${k}')">${I[ico]}<span>${n}</span>${k==="mercado"&&count?`<i class="badge">${count}</i>`:""}${k==="mundo"&&ach?`<i class="badge">${ach}</i>`:""}</button>`).join("");
+  $("tabs").innerHTML=TABS.map(([k,n,ico])=>`<button type="button" class="tab ${tab===k?"on":""}" onclick="setTab('${k}')">${I[ico]||I.market}<span>${n}</span>${k==="mercado"&&count?`<i class="badge">${count}</i>`:""}${k==="mundo"&&ach?`<i class="badge">${ach}</i>`:""}</button>`).join("");
 }
 function renderContent(){
+  if (tab === "mapa") return;
   $("tabContent").innerHTML=({mercado:tabMarket,armazens:tabWarehouses,frota:tabFleet,equipa:tabStaff,financas:tabFinance,mundo:tabWorld,log:tabLog})[tab]();
 }
 function tabMarket(){
@@ -582,8 +597,17 @@ function logout(){
 
 /* ---------- arranque ---------- */
 initMap();
-function render(){ if(!S) return; renderTop(); renderMap(); renderStrip(); renderTabs(); renderContent(); }
-function setTab(k){ tab=k; renderTabs(); renderContent(); }
+function syncViews(){
+  const mapView = tab === "mapa";
+  if ($("viewMap")) $("viewMap").hidden = !mapView;
+  if ($("viewPanel")) $("viewPanel").hidden = mapView;
+}
+function render(){ if(!S) return; renderTop(); renderMap(); renderTabs(); renderContent(); }
+function setTab(k){
+  tab = k; syncViews(); renderTabs(); renderContent();
+  if (tab === "mapa" && map) requestAnimationFrame(()=>map.invalidateSize());
+}
+syncViews();
 $("btnLogout").onclick=logout;
 $("modalRoot").addEventListener("click",e=>{ if(e.target.classList.contains("overlay")) closeModal(); });
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&token) refresh(); });
@@ -592,5 +616,11 @@ setInterval(()=>{ if(token&&!document.hidden) refresh(); },1500);
 
 /* PWA — o service worker guarda apenas a interface; os dados vêm sempre do servidor. */
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  navigator.serviceWorker.register("/sw.js").then(reg => {
+    if (reg) reg.update().catch(()=>{});
+  }).catch(()=>{});
+  document.addEventListener("visibilitychange",()=>{
+    if (document.hidden) return;
+    navigator.serviceWorker.getRegistration().then(reg => { if (reg) reg.update().catch(()=>{}); }).catch(()=>{});
+  });
 }
