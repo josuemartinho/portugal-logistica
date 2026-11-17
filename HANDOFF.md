@@ -2,7 +2,7 @@
 
 Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 
-## Estado atual (17/11/2026) — FASE 4 CONCLUÍDA
+## Estado atual (17/11/2026) — TODAS AS FASES CONCLUÍDAS (0–5)
 
 - **Fase 0:** protótipo no GitHub Pages.
 - **Fase 1:** API + SQLite + contas + relógio do servidor.
@@ -10,8 +10,9 @@ Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 - **Fase 3:** economia dinâmica (gasóleo, desgaste, avarias, reputação, impostos, crédito).
 - **Fase 4:** ranking, conquistas, eventos mundiais e API pública com chaves.
 - **Stack:** Node 26.13.1, SQLite nativo, zero dependências npm.
-- **API:** `/api/health` → `{"ok":true,"version":"5.0-fase4","publicApi":"/api/public/v1"}`.
-- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase.
+- **Fase 5:** PWA, configurações de deploy, testes automatizados e documentação final.
+- **API:** `/api/health` → `{"ok":true,"version":"6.0-fase5","publicApi":"/api/public/v1","pwa":true}`.
+- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v6.0.0-fase5`).
 
 ## Fase 4 — o que foi acrescentado
 
@@ -28,6 +29,16 @@ Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 
 Versão, estado com leaderboard/conquistas/chaves/evento, rotação do evento, entrega e conquista "first" com €200, recompensa creditada, ranking com posição, criação/listagem sem hash, 401 sem chave e com chave inválida, estatísticas e ranking públicos sem sessão, rate limit 60/min, revogação imediata. Interface: 7 separadores, 10 linhas de ranking, 8 conquistas, zero erros de consola, sem overflow.
 
-## Próxima fase
+## Fase 5 — o que foi acrescentado
 
-- Fase 5: PWA (manifest + service worker + ícones), configurações de deploy (Docker/Render/Fly), testes automatizados com `node:test`, README/CHANGELOG/ROADMAP e documentação final.
+- PWA: `public/manifest.webmanifest`, `public/sw.js` (cache do app shell, nunca de `/api/`), `public/icon.svg`, link no HTML e registo no cliente.
+- `PTLOG_DB` em `server/db.js` permite escolher o ficheiro SQLite (usado pelos testes e pelos contentores).
+- Deploy: `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `render.yaml`, `fly.toml`, `DEPLOY.md`.
+- Testes: `tests/game.test.cjs` (unitários) e `tests/api.test.cjs` (integração com servidor isolado em BD temporária), corridos com `npm test`.
+- Docs finais: `README.md`, `CHANGELOG.md`, `ROADMAP.md`, `DEPLOY.md`; guia e handoff atualizados.
+
+## Pendências não funcionais
+
+- Revogar/rodizar a chave GitHub exposta no chat.
+- Publicar a Fase 1+ num host com Node (Pages continua com a Fase 0).
+- Ideias futuras listadas em `ROADMAP.md`.
