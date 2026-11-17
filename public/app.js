@@ -40,60 +40,31 @@ const I = {
   bolt:'<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>'
 };
 
-const CITIES = [
-  {n:"Lisboa",lo:-9.14,la:38.72},{n:"Porto",lo:-8.61,la:41.15},{n:"Braga",lo:-8.43,la:41.55},
-  {n:"Aveiro",lo:-8.65,la:40.64},{n:"Coimbra",lo:-8.43,la:40.21},{n:"Leiria",lo:-8.80,la:39.74},
-  {n:"Santarém",lo:-8.69,la:39.24},{n:"Setúbal",lo:-8.89,la:38.52},{n:"Évora",lo:-7.91,la:38.57},
-  {n:"Beja",lo:-7.86,la:38.02},{n:"Faro",lo:-7.93,la:37.02},{n:"Portimão",lo:-8.54,la:37.14},
-  {n:"Viseu",lo:-7.91,la:40.66},{n:"Guarda",lo:-7.27,la:40.54},{n:"Castelo Branco",lo:-7.49,la:39.82},
-  {n:"Vila Real",lo:-7.75,la:41.30},{n:"Bragança",lo:-6.76,la:41.80}
-];
-const BASES = ["Lisboa","Porto","Braga","Aveiro","Coimbra","Faro","Évora"];
+const BASES = ["Lisboa","Porto","Braga","Aveiro","Coimbra","Faro","Évora","Setúbal","Viseu","Guimarães","Sintra"];
 const VANS = { van:{name:"Carrinha",price:14000,kg:800,m3:4,l100:8}, truck:{name:"Camião leve",price:24000,kg:3000,m3:14,l100:12.5} };
-const OUTLINE = [
-  [-8.85,42.15],[-8.60,42.14],[-8.30,42.05],[-8.05,41.95],[-7.85,41.92],[-7.65,41.88],
-  [-7.40,41.92],[-7.10,41.95],[-6.80,42.00],[-6.55,41.92],[-6.30,41.78],[-6.18,41.60],
-  [-6.28,41.42],[-6.45,41.28],[-6.62,41.18],[-6.80,41.10],[-6.92,40.95],[-7.02,40.78],
-  [-6.92,40.60],[-6.80,40.40],[-6.78,40.20],[-6.88,40.00],[-7.02,39.82],[-7.12,39.62],
-  [-7.00,39.45],[-6.88,39.28],[-6.98,39.08],[-7.10,38.90],[-7.00,38.72],[-7.08,38.55],
-  [-7.28,38.40],[-7.42,38.25],[-7.32,38.08],[-7.18,37.95],[-7.32,37.82],[-7.52,37.72],
-  [-7.45,37.55],[-7.28,37.42],[-7.35,37.25],[-7.18,37.10],[-7.02,37.02],[-7.30,36.98],
-  [-7.55,37.05],[-7.85,37.02],[-8.12,36.98],[-8.35,37.02],[-8.55,37.10],[-8.75,37.18],
-  [-8.92,37.10],[-8.98,37.28],[-8.90,37.45],[-8.82,37.62],[-8.80,37.80],[-8.88,38.00],
-  [-9.02,38.18],[-9.22,38.35],[-9.42,38.52],[-9.50,38.70],[-9.38,38.85],[-9.28,39.00],
-  [-9.32,39.20],[-9.20,39.42],[-8.98,39.55],[-8.85,39.70],[-8.88,39.92],[-8.98,40.15],
-  [-8.92,40.38],[-8.80,40.55],[-8.86,40.78],[-8.88,41.00],[-8.78,41.20],[-8.84,41.40],
-  [-8.92,41.60],[-8.88,41.82]
-];
-const ROADS = [
-  ["Braga","Porto"],["Braga","Vila Real"],["Vila Real","Bragança"],["Vila Real","Viseu"],
-  ["Porto","Aveiro"],["Aveiro","Viseu"],["Viseu","Guarda"],["Guarda","Castelo Branco"],
-  ["Aveiro","Coimbra"],["Coimbra","Leiria"],["Leiria","Lisboa"],["Lisboa","Santarém"],
-  ["Santarém","Castelo Branco"],["Castelo Branco","Évora"],["Lisboa","Setúbal"],
-  ["Setúbal","Évora"],["Évora","Beja"],["Beja","Faro"],["Faro","Portimão"],["Portimão","Beja"],
-  ["Coimbra","Castelo Branco"],["Porto","Viseu"],["Lisboa","Évora"]
-];
-const MAJOR = [["Porto","Coimbra"],["Coimbra","Lisboa"],["Lisboa","Setúbal"],["Évora","Beja"],["Beja","Faro"]];
-const RIVERS = [
-  [[-7.90,40.70],[-8.20,41.00],[-8.45,41.10],[-8.61,41.15]],
-  [[-7.49,39.82],[-8.10,39.50],[-8.69,39.24],[-9.14,38.72]]
-];
-const LABEL = {
-  Lisboa:[-10,-9,"end"], Porto:[-10,-10,"end"], Braga:[9,-8,"start"], Aveiro:[9,4,"start"],
-  Coimbra:[9,4,"start"], Leiria:[-9,-9,"end"], Santarém:[9,4,"start"], Setúbal:[-9,13,"end"],
-  Évora:[9,4,"start"], Beja:[9,4,"start"], Faro:[9,4,"start"], Portimão:[-9,13,"end"],
-  Viseu:[9,-8,"start"], Guarda:[9,-8,"start"], "Castelo Branco":[9,4,"start"],
-  "Vila Real":[9,-8,"start"], Bragança:[9,-8,"start"]
+
+/* ---------- mapa real (Leaflet + OSM/CARTO + OSRM) ---------- */
+let map = null, activeBase = null, overlays = null, mapReady = false, fitDone = false;
+const routeGeom = new Map(), requestedRoutes = new Set();
+const mapStyle = "dark";
+const layerState = { offers:true, trips:true, assets:true, history:true, companies:true, reach:true };
+const TILE_STYLES = {
+  dark: { url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains:"abcd", maxZoom:19,
+          attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
+  light:{ url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains:"abcd", maxZoom:19,
+          attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
+  sat:  { url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", maxZoom:18,
+          attribution:'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics' }
 };
-const proj = (lo,la) => [ (lo+9.75)/3.65*900, (42.35-la)/5.55*700 ];
-const cityOf = n => CITIES.find(c=>c.n===n);
-function curve(a,b,bend){
-  const [x1,y1]=proj(a.lo,a.la), [x2,y2]=proj(b.lo,b.la);
-  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1;
-  return {x1,y1,x2,y2,cx:(x1+x2)/2+(-dy/len)*bend, cy:(y1+y2)/2+(dx/len)*bend};
+const cityOf = n => (S && S.geo ? S.geo.cities : []).find(c => c.n === n);
+const rkey = (a,b) => [a,b].sort().join("|");
+function routeFor(from,to){
+  const r = routeGeom.get(rkey(from,to));
+  return r && r.geometry && r.geometry.length > 1 ? r : null;
 }
-function bez(p,t){ const u=1-t; return {x:u*u*p.x1+2*u*t*p.cx+t*t*p.x2, y:u*u*p.y1+2*u*t*p.cy+t*t*p.y2}; }
-function bezAngle(p,t){ const u=1-t; return Math.atan2(2*u*(p.cy-p.y1)+2*t*(p.y2-p.cy), 2*u*(p.cx-p.x1)+2*t*(p.x2-p.cx))*180/Math.PI; }
+function iconHtml(klass, symbol, title){
+  return `<div class="map-pin ${klass}" title="${esc(title)}">${symbol}</div>`;
+}
 
 /* ---------- API ---------- */
 async function api(path, method="GET", data){
@@ -156,80 +127,184 @@ function showAuth(){
   };
 }
 
-/* ---------- mapa ---------- */
+/* ---------- mapa real ---------- */
+function initMap(){
+  if (map || typeof L === "undefined") return;
+  map = L.map("map", { zoomControl:false, attributionControl:true, preferCanvas:true, minZoom:5, maxZoom:18 })
+         .setView([39.6,-8.2],6);
+  L.control.zoom({ position:"bottomright" }).addTo(map);
+  const st = TILE_STYLES[mapStyle];
+  activeBase = L.tileLayer(st.url, { subdomains:st.subdomains||"abc", maxZoom:st.maxZoom, attribution:st.attribution }).addTo(map);
+  overlays = {};
+  for (const k of Object.keys(layerState)) overlays[k] = L.layerGroup().addTo(map);
+  document.querySelectorAll("#mapStyles button").forEach(b => {
+    b.onclick = () => {
+      if (!TILE_STYLES[b.dataset.style]) return;
+      map.removeLayer(activeBase);
+      const c = TILE_STYLES[b.dataset.style];
+      activeBase = L.tileLayer(c.url, { subdomains:c.subdomains||"abc", maxZoom:c.maxZoom, attribution:c.attribution }).addTo(map);
+      document.querySelectorAll("#mapStyles button").forEach(x => x.classList.toggle("on", x === b));
+    };
+  });
+  document.querySelectorAll("#layerToggles input").forEach(i => {
+    i.onchange = () => { layerState[i.dataset.layer] = i.checked; if (S) renderMap(); };
+  });
+  mapReady = true;
+}
+function fitNetwork(){
+  if (!map || !S) return;
+  const pts = [];
+  const add = n => { const c = cityOf(n); if (c) pts.push([c.la,c.lo]); };
+  add(S.company.base);
+  S.offers.forEach(o => { add(o.from_city); add(o.to_city); });
+  S.trips.filter(t => !t.processed_at).forEach(t => { add(t.from_city); add(t.to_city); });
+  if (pts.length > 1) map.fitBounds(pts, { padding:[46,46], maxZoom:9 });
+  else if (pts.length) map.setView(pts[0], 8);
+}
+function routeGeometry(from, to){
+  const r = routeGeom.get(rkey(from,to));
+  return r && r.geometry && r.geometry.length > 1 ? r.geometry : null;
+}
+function partialGeometry(geom, p){
+  if (!geom || geom.length < 2) return [];
+  let total = 0;
+  const segs = [];
+  for (let i=1;i<geom.length;i++) {
+    const d = Math.hypot(geom[i][1]-geom[i-1][1], geom[i][0]-geom[i-1][0]);
+    segs.push(d); total += d;
+  }
+  let target = clamp(p,0,1) * total, acc = 0;
+  const out = [geom[0]];
+  for (let i=0;i<segs.length;i++) {
+    if (acc + segs[i] >= target) {
+      const t = segs[i] ? (target-acc)/segs[i] : 0;
+      out.push([geom[i][0]+(geom[i+1][0]-geom[i][0])*t, geom[i][1]+(geom[i+1][1]-geom[i][1])*t]);
+      return out;
+    }
+    acc += segs[i]; out.push(geom[i+1]);
+  }
+  return out;
+}
+function requestRoutes(pairs){
+  const missing = [];
+  for (const [a,b] of pairs) {
+    if (!a || !b || a === b) continue;
+    const k = rkey(a,b);
+    if (!routeGeom.has(k) && !requestedRoutes.has(k)) { requestedRoutes.add(k); missing.push([a,b]); }
+  }
+  if (!missing.length) return;
+  api("/api/geo/routes", "POST", { pairs:missing })
+    .then(j => { for (const [k,r] of Object.entries(j.routes||{})) routeGeom.set(k,r); if (S) renderMap(); })
+    .catch(()=>{});
+}
+function lineFor(from, to, style){
+  const a = cityOf(from), b = cityOf(to);
+  if (!a || !b) return null;
+  const g = routeGeometry(from,to) || [[a.la,a.lo],[b.la,b.lo]];
+  return L.polyline(g, style);
+}
 function renderMap(){
-  if (!S) return;
-  const poly = OUTLINE.map(p=>proj(p[0],p[1]).map(v=>v.toFixed(1)).join(",")).join(" ");
-  let s = `<defs>
-    <linearGradient id="landGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d4965"/><stop offset="1" stop-color="#11304a"/></linearGradient>
-    <filter id="landShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity=".55"/></filter>
-    <filter id="amberGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <pattern id="seaGrid" width="45" height="45" patternUnits="userSpaceOnUse"><path d="M45 0H0V45" fill="none" stroke="#4e86ab" stroke-opacity=".07"/></pattern>
-    <clipPath id="landClip"><polygon points="${poly}"/></clipPath>
-  </defs>`;
-  s += '<rect width="900" height="700" fill="url(#seaGrid)"/>';
-  for(let y=100;y<700;y+=100) s+=`<line class="gridline" x1="0" y1="${y}" x2="900" y2="${y}"/>`;
-  for(let x=100;x<900;x+=100) s+=`<line class="gridline" x1="${x}" y1="0" x2="${x}" y2="700"/>`;
-
-  s += `<polygon class="land" points="${poly}"/>`;
-  const regions = [
-    {t:"NORTE",fill:"#2f8fc0",p:[-7.55,41.55]}, {t:"CENTRO",fill:"#4b9fc7",p:[-7.65,40.35]},
-    {t:"LISBOA",fill:"#3a86b8",p:[-8.55,39.20]}, {t:"ALENTEJO",fill:"#2b7aa8",p:[-7.55,38.15]},
-    {t:"ALGARVE",fill:"#4a9fc4",p:[-7.95,37.30]}
-  ];
-  s += '<g clip-path="url(#landClip)">';
-  for(const r of regions){
-    const [x,y]=proj(r.p[0],r.p[1]);
-    s += `<circle cx="${x}" cy="${y}" r="115" fill="${r.fill}" opacity=".12"/>`;
-    s += `<text class="region-label" x="${x}" y="${y}">${r.t}</text>`;
-  }
-  s += '</g>';
-
-  for(const pair of ROADS){
-    const c=curve(cityOf(pair[0]),cityOf(pair[1]),10);
-    s += `<path class="road" d="M${c.x1.toFixed(1)},${c.y1.toFixed(1)} Q${c.cx.toFixed(1)},${c.cy.toFixed(1)} ${c.x2.toFixed(1)},${c.y2.toFixed(1)}"/>`;
-  }
-  for(const pair of MAJOR){
-    const c=curve(cityOf(pair[0]),cityOf(pair[1]),14);
-    s += `<path class="road major" d="M${c.x1.toFixed(1)},${c.y1.toFixed(1)} Q${c.cx.toFixed(1)},${c.cy.toFixed(1)} ${c.x2.toFixed(1)},${c.y2.toFixed(1)}"/>`;
-  }
-  for(const river of RIVERS){
-    const pts=river.map(p=>proj(p[0],p[1]).map(v=>v.toFixed(1)).join(",")).join(" ");
-    s += `<polyline class="river" points="${pts}"/>`;
-  }
-
-  for(const c of CITIES){
-    const [x,y]=proj(c.lo,c.la), base=S.company.base===c.n, [dx,dy,anchor]=LABEL[c.n]||[9,4,"start"];
-    s += `<g class="city${base?" base":""}"><title>${esc(c.n)}</title>`;
-    if(base) s += `<circle class="base-halo" cx="${x}" cy="${y}" r="9"/>`;
-    s += `<circle class="city-dot" cx="${x}" cy="${y}" r="${base?5:3.4}"/>`;
-    s += `<text class="city-label" x="${x+dx}" y="${y+dy}" text-anchor="${anchor}">${esc(c.n)}${base?" ★":""}</text></g>`;
-  }
-  for(const v of S.vehicles.filter(v=>v.status==="idle")){
-    const c=cityOf(v.at); if(!c) continue;
-    const [x,y]=proj(c.lo,c.la);
-    s += `<g transform="translate(${x-11},${y+12}) scale(.8)"><rect class="van-body" x="-8" y="-6" width="10" height="8" rx="1.5"/><rect class="van-body" x="2" y="-4" width="7" height="6" rx="1.5"/><circle class="van-wheel" cx="-5" cy="3" r="2"/><circle class="van-wheel" cx="5" cy="3" r="2"/></g>`;
-  }
-
-  for(const t of S.trips.filter(t=>!t.processed_at)){
-    const a=cityOf(t.from_city||t.from), b=cityOf(t.to_city||t.to); if(!a||!b) continue;
-    const p=clamp((S.company.now-t.start_at)/(t.end_at-t.start_at),0,1);
-    const c=curve(a,b,18), now=bez(c,p), angle=bezAngle(c,p);
-    s += `<path class="route-line" d="M${c.x1.toFixed(1)},${c.y1.toFixed(1)} Q${c.cx.toFixed(1)},${c.cy.toFixed(1)} ${c.x2.toFixed(1)},${c.y2.toFixed(1)}"/>`;
-    s += `<circle class="dest-ring" cx="${c.x2}" cy="${c.y2}" r="10"/><circle cx="${c.x2}" cy="${c.y2}" r="3" fill="#ffc75a"/>`;
-    const done=`M${c.x1.toFixed(1)},${c.y1.toFixed(1)} Q${c.cx.toFixed(1)},${c.cy.toFixed(1)} ${now.x.toFixed(1)},${now.y.toFixed(1)}`;
-    s += `<path class="route-done" d="${done}"/>`;
-    s += `<g transform="translate(${now.x.toFixed(1)},${now.y.toFixed(1)}) rotate(${angle.toFixed(1)})"><rect class="van-body" x="-10" y="-6" width="12" height="10" rx="2"/><rect class="van-body" x="2" y="-4" width="8" height="8" rx="2"/><circle class="van-wheel" cx="-6" cy="5" r="2.4"/><circle class="van-wheel" cx="6" cy="5" r="2.4"/></g>`;
-    const label=esc(t.client)+" · "+Math.round(p*100)+"%", w=Math.max(84,label.length*6.4+18);
-    s += `<g transform="translate(${(now.x+13).toFixed(1)},${(now.y-28).toFixed(1)})"><rect class="route-pill-bg" width="${w}" height="20" rx="10"/><text class="route-pill-tx" x="9" y="14">${label}</text></g>`;
-  }
-
-  s += `<g transform="translate(842,58)"><circle class="compass" r="22"/><path class="compass" d="M0-16L5 0 0 16-5 0z"/><text class="compass-n" y="-27">N</text></g>`;
-  s += `<g transform="translate(40,650)"><line class="scale" x1="0" y1="0" x2="60" y2="0"/><line class="scale" x1="0" y1="-4" x2="0" y2="4"/><line class="scale" x1="60" y1="-4" x2="60" y2="4"/><text class="scale-tx" x="30" y="-8">100 km</text></g>`;
-  $("map").innerHTML = s;
+  if (!S || !mapReady) return;
+  const base = cityOf(S.company.base), tier = S.expansion.tier, reach = S.company.reachKm;
+  const realCount = [...routeGeom.values()].filter(r => r.provider === "osrm").length;
   $("hudBase").textContent = S.company.base;
-  const active=S.trips.filter(t=>!t.processed_at).length;
+  const active = S.trips.filter(t => !t.processed_at).length;
   $("hudOps").textContent = active ? active+" operação(ões) em curso" : "Sem operações ativas";
+  const color = (S.geo.tiers.find(t => t.key === tier.key) || {}).color || "#36d99a";
+  $("hudTier").innerHTML = `<b style="color:${color}">${esc(tier.name)}</b> · ${reach > 10000 ? "sem limite" : Math.round(reach)+" km"}`;
+  $("mapHint").textContent = (S.company.speed>1 ? "demo "+S.company.speed+"× · " : "tempo real · ") + realCount+" rotas reais";
+
+  for (const k of Object.keys(overlays)) overlays[k].clearLayers();
+
+  if (layerState.reach && base && reach < 10000) {
+    L.circle([base.la,base.lo], { radius:reach*1000, color, weight:1.4, dashArray:"6 8", fillColor:color, fillOpacity:.045 })
+      .bindTooltip(`Alcance ${tier.name}: ${reach} km`, { sticky:true }).addTo(overlays.reach);
+  }
+
+  const endpoints = new Set([S.company.base]);
+  S.offers.forEach(o => { endpoints.add(o.from_city); endpoints.add(o.to_city); });
+  S.trips.forEach(t => { endpoints.add(t.from_city); endpoints.add(t.to_city); });
+  S.warehouses.forEach(w => endpoints.add(w.city));
+  for (const c of S.geo.cities) {
+    const isBase = S.company.base === c.n;
+    const m = L.circleMarker([c.la,c.lo], {
+      radius:isBase ? 6 : (endpoints.has(c.n) ? 4.2 : 3),
+      color:isBase ? "#36d99a" : "#9fd0ef", weight:isBase ? 2.5 : 1,
+      fillColor:isBase ? "#36d99a" : (endpoints.has(c.n) ? "#5fb0ff" : "#4d7f9e"), fillOpacity:isBase ? 1 : .85
+    }).bindTooltip(isBase ? `<b>${esc(c.n)}</b> · sede` : esc(c.n), { direction:"top", offset:[0,-5],
+        permanent:isBase || endpoints.has(c.n), className:"city-tip" });
+    m.addTo(overlays.assets);
+  }
+
+  if (layerState.companies) {
+    for (const r of S.leaderboard.rows) {
+      const c = cityOf(r.base_city);
+      if (!c || r.name === S.company.name) continue;
+      L.marker([c.la,c.lo], { icon:L.divIcon({ className:"", html:iconHtml("co","●",r.name), iconSize:[14,14], iconAnchor:[7,7] }) })
+       .bindTooltip(`<b>${esc(r.name)}</b><br>${esc(r.base_city)} · ${money(r.cash)}`, { direction:"top" })
+       .addTo(overlays.companies);
+    }
+  }
+
+  if (layerState.assets) {
+    for (const w of S.warehouses) {
+      const c = cityOf(w.city); if (!c) continue;
+      L.marker([c.la,c.lo], { icon:L.divIcon({ className:"", html:iconHtml("wh","▣",w.city), iconSize:[22,22], iconAnchor:[11,11] }) })
+       .bindTooltip(`<b>${esc(w.city)}</b><br>${w.city === S.company.base ? "Sede" : "Armazém"} · ${Math.round(w.kg)} kg`, { direction:"top", offset:[0,-8] })
+       .addTo(overlays.assets);
+    }
+    for (const v of S.vehicles.filter(v => v.status === "idle")) {
+      const c = cityOf(v.at); if (!c) continue;
+      L.marker([c.la+0.035,c.lo-0.035], { icon:L.divIcon({ className:"", html:iconHtml("van","▰",VANS[v.model].name), iconSize:[22,18], iconAnchor:[11,9] }) })
+       .bindTooltip(`${esc(VANS[v.model].name)} · ${esc(v.at)}<br>${Math.round(v.km)} km · estado ${Math.round(v.condition)}%`, { direction:"top" })
+       .addTo(overlays.assets);
+    }
+    const idleDrivers = S.drivers.filter(d => d.status === "idle");
+    if (idleDrivers.length && base) {
+      L.marker([base.la-0.03,base.lo+0.035], { icon:L.divIcon({ className:"", html:iconHtml("team",String(idleDrivers.length),idleDrivers.length+" motoristas"), iconSize:[20,20], iconAnchor:[10,10] }) })
+       .bindTooltip(`${idleDrivers.length} motorista(s) disponível(eis)`, { direction:"top" }).addTo(overlays.assets);
+    }
+  }
+
+  const pairs = [];
+  if (layerState.offers) {
+    for (const o of S.offers) {
+      const a = cityOf(o.from_city), b = cityOf(o.to_city); if (!a || !b) continue;
+      pairs.push([o.from_city,o.to_city]);
+      const line = lineFor(o.from_city,o.to_city, { color, weight:2, opacity:.45, dashArray:"5 9" });
+      if (line) line.bindTooltip(`<b>${esc(o.client)}</b><br>${esc(o.from_city)} → ${esc(o.to_city)}<br>${o.km} km · ${money(o.price)}`, { sticky:true }).addTo(overlays.offers);
+      L.circleMarker([a.la,a.lo], { radius:3, color, fillColor:"#08111c", fillOpacity:1, weight:2 }).addTo(overlays.offers);
+      L.circleMarker([b.la,b.lo], { radius:4, color, fillColor:color, fillOpacity:.55, weight:2 }).addTo(overlays.offers);
+    }
+  }
+
+  if (layerState.trips) {
+    for (const t of S.trips.filter(t => !t.processed_at)) {
+      const a = cityOf(t.from_city), b = cityOf(t.to_city); if (!a || !b) continue;
+      pairs.push([t.from_city,t.to_city]);
+      const p = clamp((S.company.now - t.start_at) / Math.max(1,t.end_at-t.start_at), 0, 1);
+      const g = routeGeometry(t.from_city,t.to_city) || [[a.la,a.lo],[b.la,b.lo]];
+      L.polyline(g, { color:"#ffc75a", weight:2.4, opacity:.32 }).addTo(overlays.trips);
+      const done = partialGeometry(g,p);
+      if (done.length > 1) L.polyline(done, { color:"#ffc75a", weight:4, opacity:.95 }).addTo(overlays.trips);
+      const pos = done[done.length-1];
+      L.marker(pos, { icon:L.divIcon({ className:"", html:iconHtml("moving","➤",t.client+" "+Math.round(p*100)+"%"), iconSize:[24,20], iconAnchor:[12,10] }) })
+       .bindTooltip(`<b>${esc(t.client)}</b><br>${esc(t.from_city)} → ${esc(t.to_city)}<br>${Math.round(p*100)}% · chegada ${dt(t.end_at)}`, { direction:"top", offset:[0,-8] })
+       .addTo(overlays.trips);
+      L.circleMarker([b.la,b.lo], { radius:9, color:"#ffc75a", fillOpacity:0, weight:2, dashArray:"3 4" }).addTo(overlays.trips);
+    }
+  }
+
+  if (layerState.history) {
+    for (const t of S.trips.filter(t => t.processed_at).slice(0,12)) {
+      if (!cityOf(t.from_city) || !cityOf(t.to_city)) continue;
+      pairs.push([t.from_city,t.to_city]);
+      const line = lineFor(t.from_city,t.to_city, { color:"#6f93aa", weight:1.2, opacity:.28 });
+      if (line) line.bindTooltip(`${esc(t.client)} · ${esc(t.from_city)} → ${esc(t.to_city)}`, { sticky:true }).addTo(overlays.history);
+    }
+  }
+  requestRoutes(pairs);
+  if (!fitDone && base) { fitDone = true; fitNetwork(); }
 }
 
 /* ---------- topo e operações ---------- */
@@ -273,8 +348,13 @@ function renderContent(){
 function tabMarket(){
   if(!S.offers.length) return empty("Mercado vazio","Volte dentro de minutos ou acelere o tempo no topo.");
   const freeVans=S.vehicles.filter(v=>v.status==="idle"), freeDrivers=S.drivers.filter(d=>d.status==="idle");
+  const ex=S.expansion, nt=ex.next;
   return `<div class="section-head"><div><p class="eyebrow">Ofertas de carga geral</p><h2>Mercado de contratos</h2></div><span class="count">${S.offers.length} disponíveis</span></div>
-    <p class="lead">A receita é paga na conclusão. A margem já inclui combustível, portagens, desgaste, ordenado e renda.</p>`+
+    <div class="tier-card"><div class="tier-ico">${I.globe.replace('<svg','<svg style="width:20px;height:20px"')}</div>
+      <div class="tier-main"><strong>Nível ${esc(ex.tier.name)} · alcance ${ex.tier.reachKm>10000?"nacional":Math.round(ex.tier.reachKm)+" km"}</strong>
+      <small>${nt?"Próximo: "+esc(nt.name)+" · falta "+(nt.missing.length?nt.missing.join(", "):"nada"):"Rede nacional desbloqueada"}</small></div>
+      <span class="chip">${ex.deliveries} entregas</span></div>
+    <p class="lead">A receita é paga na conclusão. A margem já inclui combustível, portagens, desgaste, ordenado e renda. Só vê contratos ao seu alcance.</p>`+
     S.offers.map(o=>{
       const price=money(o.price), inicial=o.client.slice(0,2).toUpperCase();
       const wh=o.needs_stock?S.warehouses.find(w=>w.city===o.from_city):null;
@@ -300,7 +380,7 @@ function tabMarket(){
 }
 function tabWarehouses(){
   const whs=S.warehouses, active=S.recurring.filter(r=>r.active);
-  const free=CITIES.map(c=>c.n).filter(n=>!whs.some(w=>w.city===n));
+  const free=(S.geo?S.geo.cities:[]).map(c=>c.n).filter(n=>!whs.some(w=>w.city===n));
   const auto=S.company.autoDispatch;
   return `<div class="section-head"><div><p class="eyebrow">Fase 2 · logística de stock</p><h2>Armazéns</h2></div><span class="count">${whs.length}/3</span></div>
     <p class="lead">Compre mercadoria barata na origem, entregue-a com um contrato recorrente e venda-a no destino com margem.</p>
@@ -495,6 +575,7 @@ function logout(){
 }
 
 /* ---------- arranque ---------- */
+initMap();
 function render(){ if(!S) return; renderTop(); renderMap(); renderStrip(); renderTabs(); renderContent(); }
 function setTab(k){ tab=k; renderTabs(); renderContent(); }
 $("btnLogout").onclick=logout;
