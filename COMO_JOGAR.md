@@ -1,4 +1,4 @@
-# Portugal Logística — Fase 4
+# Portugal Logística — Fase 5
 
 Versão com servidor, armazéns, economia dinâmica, ranking, conquistas, eventos mundiais e API pública. O protótipo da Fase 0 continua no GitHub Pages.
 
@@ -59,5 +59,20 @@ Invoke-RestMethod -Uri http://localhost:3000/api/public/v1/stats -Headers @{ 'X-
 ## Separadores
 
 Mercado · Armazéns · Frota · Equipa · Finanças · Mundo · Histórico.
+
+## PWA e instalação (Fase 5)
+
+- O jogo é instalável como aplicação: no Chrome/Edge, use **Instalar aplicação** no menu do endereço; no Android, **Adicionar ao ecrã inicial**.
+- Funciona em `localhost` ou em HTTPS. A interface abre offline (service worker), mas **os dados nunca são cacheados**: é preciso ligação ao servidor para jogar.
+- Ícone e ecrã de arranque usam `icon.svg` e `manifest.webmanifest`.
+
+## Testes e deploy (Fase 5)
+
+```powershell
+npm test        # testes unitários + integração da API
+npm run health  # confirma o servidor local
+```
+
+Configurações prontas: `Dockerfile`, `docker-compose.yml`, `render.yaml` e `fly.toml`. Ver `DEPLOY.md`.
 
 > O GitHub Pages não executa Node; continua com a Fase 0. Fase 1+ precisa de host com Node.
