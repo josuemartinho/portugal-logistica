@@ -16,6 +16,25 @@ test("constantes e catálogos da Fase 6", () => {
   assert.equal(G.routeKey("Porto","Lisboa"), G.routeKey("Lisboa","Porto"));
 });
 
+test("catálogo de clientes e pontos de interesse da Fase 7", () => {
+  for (const brand of ["Stellantis","Delta Cafés","Sofrapa","Pingo Doce","Continente"]) {
+    assert.ok(G.CLIENTS.includes(brand), `cliente ${brand} em falta`);
+  }
+  const keys = new Set(G.POI_CATEGORIES.map(c => c.key));
+  for (const key of ["supermercado","farmacia","oficina","autopecas","industria","cafe","logistica"]) {
+    assert.ok(keys.has(key), `categoria ${key} em falta`);
+  }
+  assert.ok(G.POIS.length >= G.CITIES.length * 3, `POIs=${G.POIS.length}`);
+  for (const p of G.POIS) {
+    assert.ok(p.n && p.brand && p.city, "POI incompleto");
+    assert.ok(keys.has(p.cat), `categoria inválida: ${p.cat}`);
+    assert.ok(p.la > 35 && p.la < 43 && p.lo > -10 && p.lo < -5, `coordenadas inválidas: ${p.n}`);
+  }
+  for (const name of ["Stellantis","Delta Cafés","Sofrapa","Pingo Doce"]) {
+    assert.ok(G.POIS.some(p => p.brand === name && p.featured), `POI destacado ${name} em falta`);
+  }
+});
+
 test("distância e tempo de viagem", () => {
   assert.equal(G.distKm(G.city("Porto"), G.city("Porto")), 0);
   const km = G.distKm(G.city("Lisboa"), G.city("Porto"));
