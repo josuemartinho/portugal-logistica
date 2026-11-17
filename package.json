@@ -1,6 +1,6 @@
 {
   "name": "portugal-logistica",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "private": true,
   "description": "Simulador de logística em Portugal — API + SQLite + PWA, sem dependências externas",
   "scripts": {
