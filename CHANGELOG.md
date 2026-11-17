@@ -1,5 +1,18 @@
 # Changelog
 
+## v7.0.0 — Fase 6 (17/11/2026)
+
+- Mapa real interativo com Leaflet 1.9.4 servido localmente (`public/vendor/`); estilos CARTO escuro/claro e Esri World Imagery (satélite), sem chaves pagas.
+- 47 cidades portuguesas reais em `server/game.js`; o cliente deixou de desenhar um SVG fictício e passou a receber a geometria da API.
+- Rotas rodoviárias reais via OSRM público, cacheadas em SQLite (`route_cache`), com fallback para distância haversine. O custo e a duração das viagens usam os km reais quando a rota já está em cache.
+- Progressão geográfica: `local` (130 km) → `regional` (320 km) → `national` (sem limite), desbloqueada por entregas, reputação, armazéns ou caixa.
+- Garantia de 3 ofertas locais por base/empresa; `/api/state` filtra contratos pelo alcance atual.
+- Todas as camadas mapeadas em todos os estados: ofertas, viagens com posição real sobre a rota, frota, armazéns, histórico, outras empresas e círculo de alcance; controlos de estilo e toggles por camada.
+- HUD de nível/alcance e cartão de progressão no Mercado; service worker atualizado para `ptlog-v7-fase6`.
+- Correções durante a validação: `overlays` declarado em `initMap`; `subdomains` definido para o tile satélite; URL do estilo claro corrigida de `positron` para `light_all`.
+- Testes: 14/14 verdes. Browser: 3 estilos com tiles carregados, toggles a funcionar, 1 rota OSRM com 1374 pontos, zero erros de consola.
+- Health: `{"ok":true,"version":"7.0-fase6","publicApi":"/api/public/v1","pwa":true,"map":"leaflet-osrm"}`.
+
 ## v6.0.0 — Fase 5 (17/11/2026)
 
 - PWA: `manifest.webmanifest`, service worker (`sw.js`), ícone SVG, registo no cliente; API nunca cacheada.
