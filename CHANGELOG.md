@@ -1,5 +1,13 @@
 # Changelog
 
+## v7.0.1 — Fase 6 (correção mobile, 17/11/2026)
+
+- Isolado o `stacking context` do mapa (`isolation:isolate; z-index:0` em `.mapwrap`): os controlos do Leaflet e os toggles (z-index 500–1000) deixaram de aparecer por cima do modal de autenticação. Overlay passou a `z-index:1000` e toast a `1100`.
+- Controlos compactados no telemóvel: painel de camadas colapsável com botão **Camadas**; HUD, botões e separador de estilos reposicionados para não se sobreporem.
+- Layout responsivo reforçado: `100dvh`, topbar mais compacta, mapa com mais altura, `row2` do modal numa coluna, `tier-card` e `section-head` com quebra automática.
+- Cache da PWA atualizado para `ptlog-v7.0.1-fase6`.
+- Validação em viewports simuladas de 320, 390 e 1200 px: sem overflow horizontal, modal no topo, camadas recolhidas no mobile e visíveis no desktop, zero erros de consola.
+
 ## v7.0.0 — Fase 6 (17/11/2026)
 
 - Mapa real interativo com Leaflet 1.9.4 servido localmente (`public/vendor/`); estilos CARTO escuro/claro e Esri World Imagery (satélite), sem chaves pagas.
