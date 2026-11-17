@@ -53,12 +53,13 @@ after(async () => {
   }
 });
 
-test("health e versão da Fase 5", async () => {
+test("health e versão da Fase 6", async () => {
   const h = await call("/api/health");
   assert.equal(h.status, 200);
-  assert.equal(h.body.version, "6.0-fase5");
+  assert.equal(h.body.version, "7.0-fase6");
   assert.equal(h.body.pwa, true);
   assert.equal(h.body.publicApi, "/api/public/v1");
+  assert.equal(h.body.map, "leaflet-osrm");
 });
 
 test("PWA servida com os cabeçalhos correctos", async () => {
@@ -95,6 +96,31 @@ test("registo, login e state", async () => {
   assert.ok(login.body.token);
   const unauth = await call("/api/state");
   assert.equal(unauth.status, 401);
+});
+
+test("mapa real: cidades, alcance e geometria da rota", async () => {
+  const u = "mapa_" + Date.now().toString().slice(-6);
+  const reg = await call("/api/register", "POST", { username:u, password:"senha123", company:"Mapa Teste", base:"Faro" });
+  const tok = reg.body.token;
+  const s = (await call("/api/state", "GET", null, tok)).body;
+  assert.equal(s.company.base, "Faro");
+  assert.equal(s.company.tier, "local");
+  assert.equal(s.company.reachKm, 130);
+  assert.ok(s.geo.cities.length >= 45);
+  assert.ok(s.expansion.next && s.expansion.next.key === "regional");
+  for (const o of s.offers) {
+    const a = s.geo.cities.find(c => c.n === o.from_city);
+    const b = s.geo.cities.find(c => c.n === o.to_city);
+    assert.ok(a && b && typeof a.la === "number" && typeof b.lo === "number");
+  }
+  const geo = await call("/api/geo/routes", "POST", { pairs:[["Lisboa","Porto"]] }, tok);
+  assert.equal(geo.status, 200);
+  const r = geo.body.routes[["Lisboa","Porto"].sort().join("|")];
+  assert.ok(r, "rota Lisboa-Porto deve existir");
+  assert.ok(r.km > 200 && r.km < 500, `km=${r.km}`);
+  assert.ok(Array.isArray(r.geometry) && r.geometry.length >= 2);
+  assert.ok(["osrm","fallback"].includes(r.provider));
+  assert.ok(r.geometry.every(p => Array.isArray(p) && p.length === 2));
 });
 
 test("ciclo: contratar, comprar, entregar e conquistar", async () => {
