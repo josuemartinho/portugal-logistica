@@ -25,7 +25,7 @@ docker compose up --build -d
 1. Criar **Web Service** a partir do repositório.
 2. O ficheiro `render.yaml` é detetado automaticamente (runtime `node`, `node server/server.js`, disco de 1 GB em `/data`).
 3. Confirmar `PTLOG_DB=/data/game.db` e `PORT=3000`.
-4. Health check: `GET /api/health` → `{"ok":true,"version":"7.0-fase6",...,"map":"leaflet-osrm"}`.
+4. Health check: `GET /api/health` → `{"ok":true,"version":"8.0-fase7",...,"map":"leaflet-osrm","pois":true}`.
 
 ## Fly.io
 
