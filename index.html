@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portugal Logística — protótipo jogável</title>
+<style>
+:root{
+  --bg:#0c1118; --panel:#141c27; --panel2:#1b2635; --line:#2a3a4d;
+  --txt:#e8eef6; --muted:#8fa3b8; --green:#37d399; --red:#ff6b6b;
+  --amber:#ffc857; --blue:#5aa9ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;cursor:pointer}
+.topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 16px;background:#0f1621;border-bottom:1px solid var(--line)}
+.brand{font-weight:800;letter-spacing:.12em;font-size:13px;color:var(--muted)}
+.brand b{color:var(--green)}
+.kpis{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto;align-items:center}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--muted)}
+.kpi strong{display:block;color:var(--txt);font-size:15px;font-variant-numeric:tabular-nums}
+.kpi.pos strong{color:var(--green)} .kpi.neg strong{color:var(--red)}
+.speed{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px}
+.speed button{border:0;background:transparent;color:var(--muted);border-radius:5px;padding:4px 9px;font-size:12px}
+.speed button.on{background:var(--green);color:#05130d;font-weight:800}
+.layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.9fr);gap:12px;padding:12px;height:calc(100vh - 58px)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card>h2{margin:0;padding:10px 14px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+.card>h2 span{text-transform:none;letter-spacing:0;color:var(--txt)}
+.mapwrap{flex:1;min-height:0;position:relative;background:radial-gradient(circle at 40% 35%,#16283a 0,#0d1520 70%)}
+svg#map{width:100%;height:100%;display:block}
+.city{cursor:default}
+.city circle{fill:var(--blue);stroke:#0b1220;stroke-width:1.5}
+.city.base circle{fill:var(--green)}
+.city text{fill:#c9d8e8;font-size:10px;paint-order:stroke;stroke:#0b1220;stroke-width:3px}
+.vanmarker{fill:var(--amber);stroke:#20160a;stroke-width:2}
+.tripPath{stroke:var(--amber);stroke-width:2;stroke-dasharray:5 5;fill:none;opacity:.75}
+.strip{border-top:1px solid var(--line);padding:8px 12px;min-height:56px;max-height:110px;overflow:auto;font-size:12px;color:var(--muted)}
+.strip .row{padding:3px 0;border-bottom:1px dashed #223044}
+.strip .row:last-child{border:0}
+.strip b{color:var(--txt)}
+.tabs{display:flex;gap:2px;padding:8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{border:0;background:transparent;color:var(--muted);padding:7px 10px;border-radius:7px;font-size:12px}
+.tabs button.on{background:var(--panel2);color:var(--txt);box-shadow:inset 0 0 0 1px var(--line)}
+.tabcontent{padding:12px;overflow:auto;flex:1}
+h3{margin:0 0 8px;font-size:14px}
+h4{margin:14px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.item{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:8px}
+.item .top{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.item .sub{color:var(--muted);font-size:12px;margin:3px 0 7px}
+.item .nums{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-variant-numeric:tabular-nums}
+.item .nums span b{color:var(--txt)}
+.tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:20px;background:#233248;color:#bcd0e6;margin-right:4px}
+.tag.g{background:#123c31;color:var(--green)} .tag.r{background:#402026;color:var(--red)} .tag.a{background:#3b3219;color:var(--amber)}
+button.act{background:var(--green);color:#06160f;border:0;border-radius:7px;padding:8px 12px;font-weight:800;font-size:12px}
+button.act:hover{filter:brightness(1.08)}
+button.act:disabled{background:#2c3a4a;color:#75879b;cursor:not-allowed}
+button.small{padding:5px 9px;font-size:11px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:7px 10px}
+input,select{background:#0e1723;border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:8px;width:100%;font:inherit}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+.overlay{position:fixed;inset:0;background:#050a10cc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(480px,100%);max-height:90vh;overflow:auto}
+.modal h2{margin:0 0 6px;font-size:19px}
+.modal p{color:var(--muted);font-size:13px}
+.modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.muted{color:var(--muted)} .pos{color:var(--green)} .neg{color:var(--red)}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+@media(max-width:850px){.layout{grid-template-columns:1fr;height:auto}.mapwrap{height:42vh}.card{min-height:300px}.kpi{padding:4px 7px}.brand{width:100%}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">PORTUGAL <b>LOGÍSTICA</b> <span id="coName"></span></div>
+  <div class="kpis" id="kpis"></div>
+</div>
+<div class="layout">
+  <section class="card">
+    <h2>Mapa / Operação <span id="mapHint">—</span></h2>
+    <div class="mapwrap"><svg id="map" viewBox="0 0 900 700" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="strip" id="strip"></div>
+  </section>
+  <aside class="card">
+    <nav class="tabs" id="tabs"></nav>
+    <div class="tabcontent" id="tabContent"></div>
+  </aside>
+</div>
+<div id="modalRoot"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   PORTUGAL LOGÍSTICA — protótipo da Fase 2 (primeiro ciclo jogável)
+   Complemento do PLANO_FASE0.md. Sem dependências externas.
+   ============================================================ */
+
+const KEY = "ptlogistica_v1";
+const CFG = {
+  capital: 25000, rent: 350, wage: 1500, social: 0.22, diesel: 1.75,
+  tollPerKm: 0.10, motorwayShare: 0.60, wearPerKm: 0.10, speedKmh: 65,
+  roadFactor: 1.25, loadMin: 30, unloadMin: 20, maxAbsenceDays: 30
+};
+const CITIES = [
+  {n:"Lisboa",lo:-9.14,la:38.72},{n:"Porto",lo:-8.61,la:41.15},{n:"Braga",lo:-8.43,la:41.55},
+  {n:"Aveiro",lo:-8.65,la:40.64},{n:"Coimbra",lo:-8.43,la:40.21},{n:"Leiria",lo:-8.80,la:39.74},
+  {n:"Santarém",lo:-8.69,la:39.24},{n:"Setúbal",lo:-8.89,la:38.52},{n:"Évora",lo:-7.91,la:38.57},
+  {n:"Beja",lo:-7.86,la:38.02},{n:"Faro",lo:-7.93,la:37.02},{n:"Portimão",lo:-8.54,la:37.14},
+  {n:"Viseu",lo:-7.91,la:40.66},{n:"Guarda",lo:-7.27,la:40.54},{n:"Castelo Branco",lo:-7.49,la:39.82},
+  {n:"Vila Real",lo:-7.75,la:41.30},{n:"Bragança",lo:-6.76,la:41.80}
+];
+const OUTLINE = [
+  [-8.87,42.15],[-8.10,42.10],[-7.80,41.90],[-7.60,41.80],[-7.20,41.88],[-6.60,41.95],
+  [-6.20,41.60],[-6.55,41.20],[-6.85,41.10],[-7.05,40.60],[-6.80,40.20],[-6.90,39.70],
+  [-7.10,39.40],[-6.80,39.00],[-7.00,38.50],[-7.40,38.20],[-7.20,37.90],[-7.50,37.70],
+  [-7.40,37.20],[-7.05,37.00],[-7.55,37.10],[-7.90,37.00],[-8.20,37.00],[-8.60,37.10],
+  [-8.95,37.02],[-9.00,37.40],[-8.80,37.80],[-8.80,38.10],[-9.20,38.40],[-9.50,38.78],
+  [-9.30,39.00],[-9.30,39.40],[-8.90,39.60],[-8.80,40.00],[-8.90,40.50],[-8.75,41.00],
+  [-8.85,41.40],[-8.78,41.80]
+];
+const CLIENTS = ["Continente","Pingo Doce","Worten","Delta Cafés","Vista Alegre","The Navigator Company"];
+const DNAMES = ["Rui Almeida","Sofia Marques","Pedro Nunes","Ana Costa","Miguel Faria","Inês Lopes","Tiago Silva","Carla Dias"];
+const VANS = {
+  van:{name:"Carrinha",price:14000,kg:800,m3:4,l100:8},
+  truck:{name:"Camião leve",price:24000,kg:3000,m3:14,l100:12.5}
+};
+let S = null, tab = "mercado", renderCount = 0;
+
+/* ---------- util ---------- */
+const $ = id => document.getElementById(id);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const uid = p => p + "_" + Math.random().toString(36).slice(2,9);
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+function money(n){ return (n<0?"-":"") + "€" + Math.abs(n).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function dt(t){ return new Date(t).toLocaleString("pt-PT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }
+function hhmm(t){ return new Date(t).toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"}); }
+function dur(ms){ const m=Math.round(ms/60000); return (m>=60?Math.floor(m/60)+"h ":"")+(m%60)+"m"; }
+function proj(lo,la){ return [ (lo+9.75)/3.65*900, (42.35-la)/5.55*700 ]; }
+function distKm(a,b){
+  const R=6371, rad=Math.PI/180;
+  const dLa=(b.la-a.la)*rad, dLo=(b.lo-a.lo)*rad;
+  const h=Math.sin(dLa/2)**2+Math.cos(a.la*rad)*Math.cos(b.la*rad)*Math.sin(dLo/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h))*CFG.roadFactor;
+}
+function city(name){ return CITIES.find(c=>c.n===name); }
+function travelMs(km){ return (CFG.loadMin + km/CFG.speedKmh*60 + CFG.unloadMin)*60000; }
+function estimate(km,kg){
+  const fuel=km/100*8*CFG.diesel, toll=km*CFG.motorwayShare*CFG.tollPerKm, wear=km*CFG.wearPerKm;
+  const cash=fuel+toll+wear;
+  const hours=km/CFG.speedKmh;
+  const wage=S&&S.drivers.length ? CFG.wage*(1+CFG.social)/30/8*hours : 0;
+  const rent=CFG.rent/30/8*hours;
+  return {fuel,toll,wear,cash,economic:cash+wage+rent};
+}
+function log(msg,type){ S.log.unshift({t:S.now,msg,type:type||"i"}); S.log=S.log.slice(0,60); }
+
+/* ---------- estado ---------- */
+function newState(name,base){
+  const now=Date.now();
+  return {v:1,createdAt:now,now,lastReal:now,lastDay:Math.floor(now/86400000),speed:1,
+    company:{name,base},cash:CFG.capital,
+    vans:[],drivers:[],offers:[],trips:[],ledger:[],log:[],
+    npcs:[{name:"TransRápido",cash:9000},{name:"Norte Cargas",cash:11000},{name:"Alfa Transportes",cash:8000}],
+    stats:{deliveries:0,revenue:0,costs:0,npcWins:0},nextNpc:now+15*60000};
+}
+function save(){ if(S) localStorage.setItem(KEY,JSON.stringify(S)); }
+function load(){
+  try{ const raw=localStorage.getItem(KEY); if(!raw) return null; const s=JSON.parse(raw); return s&&s.v===1?s:null; }
+  catch(e){ return null; }
+}
+function entry(type,desc,amount){
+  S.cash+=amount;
+  S.ledger.unshift({id:uid("m"),t:S.now,type,desc,amount,bal:S.cash});
+  S.ledger=S.ledger.slice(0,200);
+}
+
+/* ---------- simulação ---------- */
+function advance(){
+  if(!S) return;
+  const real=Date.now();
+  let dt=Math.max(0,real-S.lastReal);
+  dt=Math.min(dt,CFG.maxAbsenceDays*86400000);
+  const before=S.now;
+  S.now+=dt*S.speed;
+  S.lastReal=real;
+  processDays();
+  processTrips();
+  processNpcs(before,S.now);
+  if(S.offers.filter(o=>!o.taken&&o.expiresAt>S.now).length<9) refreshOffers();
+}
+function processDays(){
+  const day=86400000, target=Math.floor(S.now/day);
+  let guard=0;
+  while(S.lastDay<target && guard++<40){
+    S.lastDay++;
+    if(S.lastDay<=Math.floor(S.createdAt/day)) continue;
+    const wages=S.drivers.reduce((a,d)=>a+CFG.wage*(1+CFG.social),0);
+    const total=CFG.rent+wages;
+    if(total>0){ entry("cost","Aluguer base + ordenados ("+dt(S.now)+")",-total); log("Despesas diárias: "+money(total)); }
+  }
+}
+function processTrips(){
+  for(const t of S.trips){
+    if(t.done||S.now<t.endAt) continue;
+    t.done=true;
+    const van=S.vans.find(v=>v.id===t.vanId), dr=S.drivers.find(d=>d.id===t.driverId);
+    if(van){ van.at=t.to; van.status="idle"; van.tripId=null; van.km+=t.km; }
+    if(dr){ dr.at=t.to; dr.status="idle"; dr.tripId=null; }
+    entry("revenue","Entrega "+t.client+" · "+t.from+" → "+t.to,t.price);
+    entry("cost","Combustível/portagens/desgaste · "+t.from+" → "+t.to,-t.cost.cash);
+    S.stats.deliveries++; S.stats.revenue+=t.price; S.stats.costs+=t.cost.cash;
+    log("Entrega concluída: "+t.client+" → "+money(t.price-t.cost.cash)+" margem","g");
+  }
+}
+function processNpcs(from,to){
+  if(to<S.nextNpc) return;
+  S.nextNpc=to+(10+Math.random()*15)*60000;
+  for(const n of S.npcs){
+    if(Math.random()>0.28) continue;
+    const open=S.offers.filter(o=>!o.taken&&o.expiresAt>to&&o.kg<=1500);
+    if(!open.length) continue;
+    const o=pick(open);
+    if(o.kg>n.cash/8) continue;
+    o.taken="npc:"+n.name;
+    n.cash-=o.price*0.75;
+    S.stats.npcWins++;
+    log(n.name+" ganhou o contrato "+o.client+" ("+o.from+" → "+o.to+")","r");
+  }
+  S.offers=S.offers.filter(o=>o.expiresAt>to-3600000);
+}
+function refreshOffers(){
+  const open=S.offers.filter(o=>!o.taken&&o.expiresAt>S.now).length;
+  for(let i=open;i<11;i++) S.offers.push(makeOffer());
+}
+function makeOffer(){
+  const a=pick(CITIES); let b=pick(CITIES); while(b.n===a.n) b=pick(CITIES);
+  const km=distKm(a,b), kg=Math.round((180+Math.random()*520)/50)*50;
+  const m3=Math.round((kg/230+0.4)*10)/10;
+  const price=Math.round((30+km*(0.55+Math.random()*0.22)+kg*0.02)/5)*5;
+  return {id:uid("o"),client:pick(CLIENTS),from:a.n,to:b.n,km:Math.round(km),kg,m3,price,
+    createdAt:S.now,expiresAt:S.now+(2+Math.random()*5)*3600000,taken:null,
+    window:hhmm(S.now+2*3600000)+" – "+hhmm(S.now+8*3600000)};
+}
+
+/* ---------- mapa ---------- */
+function renderMap(){
+  const svg=$("map");
+  const poly=OUTLINE.map(p=>proj(p[0],p[1]).map(x=>x.toFixed(1)).join(",")).join(" ");
+  let s=`<polygon points="${poly}" fill="#132434" stroke="#31536e" stroke-width="1.5"/>`;
+  for(const c of CITIES){
+    const [x,y]=proj(c.lo,c.la), base=S&&S.company.base===c.n;
+    s+=`<g class="city${base?" base":""}"><circle cx="${x}" cy="${y}" r="${base?6:4}"/><text x="${x+7}" y="${y+3}">${c.n}</text></g>`;
+  }
+  if(S){
+    for(const t of S.trips.filter(t=>!t.done)){
+      const a=city(t.from),b=city(t.to),[x1,y1]=proj(a.lo,a.la),[x2,y2]=proj(b.lo,b.la);
+      const p=clamp((S.now-t.startAt)/(t.endAt-t.startAt),0,1);
+      const x=x1+(x2-x1)*p, y=y1+(y2-y1)*p;
+      s+=`<path class="tripPath" d="M${x1},${y1} L${x2},${y2}"/>`;
+      s+=`<circle cx="${x}" cy="${y}" r="6" class="vanmarker"/>`;
+      s+=`<text x="${x+9}" y="${y-7}" fill="#ffc857" font-size="11">${t.client}</text>`;
+    }
+    for(const v of S.vans.filter(v=>v.status==="idle")){
+      const c=city(v.at),[x,y]=proj(c.lo,c.la);
+      s+=`<circle cx="${x-8}" cy="${y+8}" r="4" fill="#37d399" stroke="#06160f"/>`;
+    }
+  }
+  svg.innerHTML=s;
+}
+
+/* ---------- interface ---------- */
+const TABS=[["mercado","Mercado"],["frota","Frota"],["equipa","Equipa"],["financas","Finanças"],["log","Histórico"]];
+function renderTop(){
+  if(!S){ $("kpis").innerHTML=""; $("coName").textContent=""; return; }
+  $("coName").textContent="· "+S.company.name;
+  const active=S.trips.filter(t=>!t.done).length;
+  const margin=S.stats.revenue-S.stats.costs;
+  $("kpis").innerHTML=
+    `<div class="kpi"><strong>${money(S.cash)}</strong>Caixa</div>`+
+    `<div class="kpi"><strong>${dt(S.now)}</strong>Data / hora</div>`+
+    `<div class="kpi"><strong>${active}</strong>Em viagem</div>`+
+    `<div class="kpi ${margin>=0?"pos":"neg"}"><strong>${money(margin)}</strong>Margem acumulada</div>`+
+    `<div class="speed">`+[1,60,300].map(v=>`<button class="${S.speed===v?"on":""}" onclick="setSpeed(${v})">${v===1?"1×":""+v+"×"}</button>`).join("")+`</div>`;
+  $("mapHint").textContent = S.speed>1 ? "modo demo — tempo acelerado "+S.speed+"×" : "tempo real";
+}
+function renderStrip(){
+  if(!S){ $("strip").innerHTML="Sem empresa criada."; return; }
+  const ts=S.trips.filter(t=>!t.done);
+  if(!ts.length){ $("strip").innerHTML='<div class="empty">Sem operações ativas. Aceite um contrato no Mercado.</div>'; return; }
+  $("strip").innerHTML=ts.map(t=>{
+    const p=clamp((S.now-t.startAt)/(t.endAt-t.startAt),0,1);
+    const phase=p<0.12?"Preparação":p>0.88?"Descarga":"Em viagem";
+    return `<div class="row"><b>${t.client}</b> · ${t.from} → ${t.to} · <span class="tag a">${phase}</span> `+
+      `chegada ${dt(t.endAt)} · ${Math.round(p*100)}% · ${money(t.price)}</div>`;
+  }).join("");
+}
+function renderTabs(){
+  $("tabs").innerHTML=TABS.map(([k,n])=>`<button class="${tab===k?"on":""}" onclick="setTab('${k}')">${n}</button>`).join("");
+}
+function renderContent(){
+  if(!S){ $("tabContent").innerHTML='<div class="empty">Crie a sua empresa para começar.</div>'; return; }
+  $("tabContent").innerHTML=({
+    mercado:tabMarket,frota:tabFleet,equipa:tabStaff,financas:tabFinance,log:tabLog
+  })[tab]();
+}
+function tabMarket(){
+  const os=S.offers.filter(o=>!o.taken&&o.expiresAt>S.now);
+  if(!os.length) return '<div class="empty">O mercado está vazio. Volte dentro de minutos.</div>';
+  return `<h3>Contratos disponíveis <span class="muted">(${os.length})</span></h3>`+
+    `<p class="muted">Carga geral. Receita paga na conclusão; custos estimados com base na frota.</p>`+
+    os.map(o=>{
+      const e=estimate(o.km,o.kg), ok=S.vans.some(v=>v.status==="idle"&&v.capKg>=o.kg)&&S.drivers.some(d=>d.status==="idle");
+      return `<div class="item"><div class="top"><span>${o.client}</span><span class="pos">${money(o.price)}</span></div>`+
+        `<div class="sub">${o.from} → ${o.to} · ${o.km} km · ${o.kg} kg / ${o.m3} m³ · janela ${o.window}</div>`+
+        `<div class="nums"><span>custo caixa <b class="neg">${money(e.cash)}</b></span>`+
+        `<span>margem estimada <b class="${o.price-e.economic>=0?"pos":"neg"}">${money(o.price-e.economic)}</b></span>`+
+        `<span>expira ${hhmm(o.expiresAt)}</span></div>`+
+        `<div style="margin-top:8px"><button class="act small" ${ok?"":"disabled"} onclick="openAccept('${o.id}')">Aceitar contrato</button> `+
+        `${ok?"":'<span class="muted">precisa de veículo e motorista livres</span>'}</div></div>`;
+    }).join("");
+}
+function tabFleet(){
+  return `<h3>Frota <span class="muted">(${S.vans.length})</span></h3>`+
+    S.vans.map(v=>`<div class="item"><div class="top"><span>${VANS[v.model].name}</span>`+
+      `<span class="tag ${v.status==="idle"?"g":"a"}">${v.status==="idle"?"Disponível":"Em viagem"}</span></div>`+
+      `<div class="sub">Em ${v.at} · ${v.km.toLocaleString("pt-PT")} km · ${v.capKg} kg / ${v.capM3} m³</div></div>`).join("")+
+    `<h4>Comprar veículo</h4>`+Object.entries(VANS).map(([k,v])=>
+      `<div class="item"><div class="top"><span>${v.name}</span><span>${money(v.price)}</span></div>`+
+      `<div class="sub">${v.kg} kg · ${v.m3} m³ · ${v.l100} L/100km</div>`+
+      `<button class="act small" ${S.cash>=v.price?"":"disabled"} onclick="buyVan('${k}')">Comprar</button></div>`).join("");
+}
+function tabStaff(){
+  return `<h3>Equipa <span class="muted">(${S.drivers.length})</span></h3>`+
+    S.drivers.map(d=>`<div class="item"><div class="top"><span>${d.name}</span>`+
+      `<span class="tag ${d.status==="idle"?"g":"a"}">${d.status==="idle"?"Disponível":"Em viagem"}</span></div>`+
+      `<div class="sub">Em ${d.at} · ${money(CFG.wage)}/mês + ${Math.round(CFG.social*100)}% encargos</div></div>`).join("")+
+    `<h4>Contratar motorista</h4><div class="item"><div class="sub">Firma: ${money(300)} · ordem de ${money(CFG.wage)}/mês</div>`+
+    `<button class="act small" ${S.cash>=300?"":"disabled"} onclick="hire()">Contratar</button></div>`;
+}
+function tabFinance(){
+  const rows=S.ledger.slice(0,60);
+  return `<h3>Contas</h3><div class="item"><div class="nums">`+
+    `<span>receitas <b class="pos">${money(S.stats.revenue)}</b></span>`+
+    `<span>custos viagem <b class="neg">${money(S.stats.costs)}</b></span>`+
+    `<span>entregas <b>${S.stats.deliveries}</b></span>`+
+    `<span>contratos perdidos para NPC <b>${S.stats.npcWins}</b></span></div></div>`+
+    `<h4>Movimentos</h4>`+(rows.length?rows.map(m=>
+      `<div class="item"><div class="top"><span>${m.type==="revenue"?"Receita":"Custo"}</span>`+
+      `<span class="${m.amount>=0?"pos":"neg"}">${money(m.amount)}</span></div>`+
+      `<div class="sub">${dt(m.t)} · ${m.desc} · saldo ${money(m.bal)}</div></div>`).join(""):
+      '<div class="empty">Ainda não há movimentos.</div>');
+}
+function tabLog(){
+  return `<h3>Registo de eventos</h3>`+(S.log.length?S.log.map(l=>
+    `<div class="item"><div class="sub">${dt(l.t)} · <span class="${l.type==="g"?"pos":l.type==="r"?"neg":""}">${l.msg}</span></div></div>`).join(""):
+    '<div class="empty">Sem eventos.</div>');
+}
+function render(){
+  renderTop(); renderMap(); renderStrip(); renderTabs(); renderContent();
+}
+function setTab(k){ tab=k; renderTabs(); renderContent(); }
+function setSpeed(v){ S.speed=v; save(); renderTop(); }
+function tick(){
+  if(!S) return;
+  advance();
+  if(++renderCount%2===0){ save(); render(); }
+}
+
+/* ---------- modais e acções ---------- */
+function modal(html){ $("modalRoot").innerHTML='<div class="overlay"><div class="modal">'+html+'</div></div>'; }
+function closeModal(){ $("modalRoot").innerHTML=""; }
+function companyModal(){
+  modal(`<h2>Criar empresa</h2><p>Começo: armazém pequeno, capital de ${money(CFG.capital)}. Terá de contratar e comprar o seu primeiro veículo.</p>`+
+    `<label>Nome da empresa</label><input id="fName" value="Transportes do Minho" maxlength="40">`+
+    `<label>Base inicial</label><select id="fBase">${["Lisboa","Porto","Braga","Aveiro","Coimbra","Faro","Évora"].map(c=>`<option>${c}</option>`).join("")}</select>`+
+    `<div class="actions"><button class="act" onclick="createCompany()">Começar a jogar</button></div>`);
+}
+function createCompany(){
+  const name=$("fName").value.trim()||"Empresa sem nome";
+  S=newState(name,$("fBase").value);
+  log("Empresa "+name+" criada em "+S.company.base,"g");
+  save(); closeModal(); render();
+}
+function openAccept(id){
+  const o=S.offers.find(x=>x.id===id); if(!o||o.taken) return;
+  const vans=S.vans.filter(v=>v.status==="idle"&&v.capKg>=o.kg&&v.capM3>=o.m3);
+  const drivers=S.drivers.filter(d=>d.status==="idle");
+  const e=estimate(o.km,o.kg);
+  modal(`<h2>Aceitar contrato</h2><p>${o.client} · ${o.from} → ${o.to} · ${o.km} km · ${o.kg} kg</p>`+
+    `<div class="item"><div class="nums"><span>receita <b class="pos">${money(o.price)}</b></span>`+
+    `<span>custo caixa <b class="neg">${money(e.cash)}</b></span><span>duração <b>${dur(travelMs(o.km))}</b></span></div>`+
+    `<div class="sub">Combustível ${money(e.fuel)} · portagens ${money(e.toll)} · desgaste ${money(e.wear)}</div></div>`+
+    `<label>Veículo</label><select id="aVan">${vans.map(v=>`<option value="${v.id}">${VANS[v.model].name} · ${v.at}</option>`).join("")}</select>`+
+    `<label>Motorista</label><select id="aDr">${drivers.map(d=>`<option value="${d.id}">${d.name} · ${d.at}</option>`).join("")}</select>`+
+    `<div class="actions"><button class="ghost" onclick="closeModal()">Cancelar</button>`+
+    `<button class="act" onclick="accept('${o.id}')">Reservar e partir</button></div>`);
+}
+function accept(id){
+  const o=S.offers.find(x=>x.id===id); if(!o||o.taken) return;
+  const v=S.vans.find(x=>x.id===$("aVan").value), d=S.drivers.find(x=>x.id===$("aDr").value);
+  if(!v||!d||v.status!=="idle"||d.status!=="idle"){ closeModal(); render(); return; }
+  const e=estimate(o.km,o.kg);
+  if(S.cash<e.cash){ alert("Caixa insuficiente para os custos estimados."); return; }
+  o.taken="jogador";
+  const start=S.now, end=start+travelMs(o.km);
+  S.trips.push({id:uid("t"),client:o.client,from:o.from,to:o.to,km:o.km,price:o.price,
+    cost:e,vanId:v.id,driverId:d.id,startAt:start,endAt:end,done:false});
+  v.status="travel"; v.tripId=S.trips[S.trips.length-1].id;
+  d.status="travel"; d.tripId=v.tripId;
+  log("Contrato aceite: "+o.client+" · "+o.from+" → "+o.to+" · chegada "+dt(end),"g");
+  closeModal(); save(); render();
+}
+function buyVan(model){
+  const v=VANS[model]; if(!v||S.cash<v.price) return;
+  if(S.vans.length>=2){ alert("A base suporta até 2 veículos nesta versão."); return; }
+  entry("cost","Compra de "+v.name,-v.price);
+  S.vans.push({id:uid("v"),model,at:S.company.base,status:"idle",tripId:null,km:0,capKg:v.kg,capM3:v.m3});
+  log("Comprou "+v.name+" por "+money(v.price));
+  save(); render();
+}
+function hire(){
+  if(S.cash<300) return;
+  if(S.drivers.length>=2){ alert("Máximo de 2 motoristas nesta versão."); return; }
+  const name=DNAMES.find(n=>!S.drivers.some(d=>d.name===n))||pick(DNAMES);
+  entry("cost","Firma de "+name,-300);
+  S.drivers.push({id:uid("d"),name,at:S.company.base,status:"idle",tripId:null});
+  log("Contratou "+name);
+  save(); render();
+}
+
+/* ---------- arranque ---------- */
+$("map").innerHTML=`<polygon points="${OUTLINE.map(p=>proj(p[0],p[1]).map(x=>x.toFixed(1)).join(",")).join(" ")}" fill="#132434" stroke="#31536e" stroke-width="1.5"/>`;
+S=load();
+if(!S) companyModal(); else { log("Sessão recuperada · "+S.company.name); }
+render();
+setInterval(tick,500);
+window.addEventListener("beforeunload",save);
+</script>
+</body>
+</html>
