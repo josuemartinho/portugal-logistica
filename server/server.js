@@ -86,7 +86,7 @@ const routes = {
     if (h.startsWith("Bearer ")) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash(h.slice(7)));
     json(res, 200, { ok:true });
   },
-  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"7.0-fase6", publicApi:"/api/public/v1", pwa:true, map:"leaflet-osrm" }),
+  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"8.0-fase7", publicApi:"/api/public/v1", pwa:true, map:"leaflet-osrm", pois:true }),
   "GET /api/state": async (req,res,company) => json(res, 200, getState(company.id)),
   "POST /api/offers/accept": async (req,res,company) => {
     const b = await body(req);
