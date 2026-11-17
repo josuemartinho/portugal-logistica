@@ -9,6 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -34,16 +35,31 @@
         <div class="panel-title"><i class="live-dot"></i> Rede operacional <small id="mapHint"></small></div>
         <div class="legend">
           <span><i class="lg base"></i>Base</span>
-          <span><i class="lg free"></i>Livre</span>
+          <span><i class="lg free"></i>Contratos</span>
           <span><i class="lg moving"></i>Em rota</span>
         </div>
       </div>
       <div class="mapwrap">
-        <svg id="map" viewBox="0 0 900 700" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa de Portugal com operações"></svg>
+        <div id="map" role="application" aria-label="Mapa real de Portugal com operações"></div>
+        <div class="maptools">
+          <div class="seg mini" id="mapStyles">
+            <button data-style="dark" class="on">Escuro</button><button data-style="light">Claro</button><button data-style="sat">Satélite</button>
+          </div>
+          <div class="layer-toggles" id="layerToggles">
+            <label><input type="checkbox" data-layer="offers" checked> Ofertas</label>
+            <label><input type="checkbox" data-layer="trips" checked> Viagens</label>
+            <label><input type="checkbox" data-layer="assets" checked> Frota/Armazéns</label>
+            <label><input type="checkbox" data-layer="history" checked> Histórico</label>
+            <label><input type="checkbox" data-layer="companies" checked> Empresas</label>
+            <label><input type="checkbox" data-layer="reach" checked> Alcance</label>
+          </div>
+          <button class="btn ghost sm" onclick="fitNetwork()">Ver rede</button>
+        </div>
         <div class="hud">
           <div class="hud-lbl">BASE OPERACIONAL</div>
           <div class="hud-val" id="hudBase">—</div>
           <div class="hud-sub" id="hudOps"></div>
+          <div class="hud-tier" id="hudTier"></div>
         </div>
       </div>
       <div class="ops" id="strip"></div>
@@ -58,6 +74,7 @@
 
 <div id="modalRoot"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="vendor/leaflet.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
