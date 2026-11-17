@@ -6,7 +6,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { db, tx, companyOf, getState, acceptOffer, buyVehicle, hireDriver, setSpeed, advance,
-  ensureBaseWarehouse, rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch } = require("./db");
+  ensureBaseWarehouse, rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch,
+  takeLoan, repayLoan, repairVehicle } = require("./db");
 const { CFG, BASE_CITIES } = require("./game");
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -83,7 +84,7 @@ const routes = {
     if (h.startsWith("Bearer ")) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash(h.slice(7)));
     json(res, 200, { ok:true });
   },
-  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"3.0-fase2" }),
+  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"4.0-fase3" }),
   "GET /api/state": async (req,res,company) => json(res, 200, getState(company.id)),
   "POST /api/offers/accept": async (req,res,company) => {
     const b = await body(req);
@@ -122,6 +123,19 @@ const routes = {
   "POST /api/autodispatch": async (req,res,company) => {
     const b = await body(req);
     json(res, 200, setAutoDispatch(company.id, !!b.on));
+  },
+  // Fase 3
+  "POST /api/loans/take": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, takeLoan(company.id, b.amount));
+  },
+  "POST /api/loans/repay": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, repayLoan(company.id, b.id, b.amount));
+  },
+  "POST /api/vehicles/repair": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, repairVehicle(company.id, b.vehicleId));
   }
 };
 
