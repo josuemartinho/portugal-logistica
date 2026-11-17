@@ -151,6 +151,12 @@ function initMap(){
   });
   mapReady = true;
 }
+function toggleLayers(){
+  const panel = $("layerToggles"), btn = $("btnLayers");
+  if (!panel || !btn) return;
+  const open = panel.classList.toggle("open");
+  btn.setAttribute("aria-expanded", String(open));
+}
 function fitNetwork(){
   if (!map || !S) return;
   const pts = [];
