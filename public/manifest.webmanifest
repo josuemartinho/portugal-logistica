@@ -1,0 +1,15 @@
+{
+  "name": "Portugal Logística — Simulador",
+  "short_name": "PtLogística",
+  "description": "Simulador de logística rodoviária em Portugal com frotas, armazéns e economia dinâmica.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#08111c",
+  "theme_color": "#08111c",
+  "lang": "pt-PT",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
