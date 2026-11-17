@@ -29,33 +29,34 @@
     </button>
   </header>
 
+  <nav class="tabs" id="tabs" aria-label="Navegação principal"></nav>
+
   <main class="layout">
-    <section class="panel map-panel">
+    <section class="panel view-panel" id="viewMap">
       <div class="panel-head">
-        <div class="panel-title"><i class="live-dot"></i> Rede operacional <small id="mapHint"></small></div>
-        <div class="legend">
+        <div class="panel-title"><i class="live-dot"></i> Rotas em execução <small id="mapHint"></small></div>
+        <div class="legend" id="mapLegend">
           <span><i class="lg base"></i>Base</span>
-          <span><i class="lg free"></i>Contratos</span>
           <span><i class="lg moving"></i>Em rota</span>
+          <span><i class="lg poi"></i>Clientes</span>
         </div>
       </div>
       <div class="mapwrap">
-        <div id="map" role="application" aria-label="Mapa real de Portugal com operações"></div>
+        <div id="map" role="application" aria-label="Mapa de Portugal com rotas em execução e clientes potenciais"></div>
         <div class="maptools">
           <div class="seg mini" id="mapStyles">
-            <button data-style="dark" class="on">Escuro</button><button data-style="light">Claro</button><button data-style="sat">Satélite</button>
+            <button type="button" data-style="dark" class="on">Escuro</button><button type="button" data-style="light">Claro</button><button type="button" data-style="sat">Satélite</button>
           </div>
           <div class="layer-toggles" id="layerToggles">
-            <label><input type="checkbox" data-layer="offers" checked> Ofertas</label>
-            <label><input type="checkbox" data-layer="trips" checked> Viagens</label>
+            <label><input type="checkbox" data-layer="trips" checked> Rotas ativas</label>
+            <label><input type="checkbox" data-layer="pois" checked> Clientes (POIs)</label>
             <label><input type="checkbox" data-layer="assets" checked> Frota/Armazéns</label>
-            <label><input type="checkbox" data-layer="history" checked> Histórico</label>
-            <label><input type="checkbox" data-layer="companies" checked> Empresas</label>
             <label><input type="checkbox" data-layer="reach" checked> Alcance</label>
           </div>
+          <div class="poi-filters" id="poiFilters"></div>
           <div class="maptools-actions">
-            <button class="btn ghost sm layers-btn" id="btnLayers" aria-expanded="false" aria-controls="layerToggles" onclick="toggleLayers()">Camadas</button>
-            <button class="btn ghost sm" onclick="fitNetwork()">Ver rede</button>
+            <button type="button" class="btn ghost sm layers-btn" id="btnLayers" aria-expanded="false" aria-controls="layerToggles" onclick="toggleLayers()">Camadas</button>
+            <button type="button" class="btn ghost sm" onclick="fitNetwork()">Ver rede</button>
           </div>
         </div>
         <div class="hud">
@@ -64,14 +65,13 @@
           <div class="hud-sub" id="hudOps"></div>
           <div class="hud-tier" id="hudTier"></div>
         </div>
+        <div class="map-count" id="mapCount"></div>
       </div>
-      <div class="ops" id="strip"></div>
     </section>
 
-    <aside class="panel side-panel">
-      <nav class="tabs" id="tabs"></nav>
+    <section class="panel view-panel" id="viewPanel" hidden>
       <div class="tabcontent" id="tabContent"></div>
-    </aside>
+    </section>
   </main>
 </div>
 
