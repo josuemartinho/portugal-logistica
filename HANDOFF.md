@@ -2,40 +2,44 @@
 
 Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 
-## Estado atual (17/11/2026) — TODAS AS FASES CONCLUÍDAS (0–5)
+## Estado atual (17/11/2026) — FASES 0–6 CONCLUÍDAS
 
 - **Fase 0:** protótipo no GitHub Pages.
 - **Fase 1:** API + SQLite + contas + relógio do servidor.
 - **Fase 2:** armazéns, stock, contratos recorrentes, expedição automática.
 - **Fase 3:** economia dinâmica (gasóleo, desgaste, avarias, reputação, impostos, crédito).
 - **Fase 4:** ranking, conquistas, eventos mundiais e API pública com chaves.
-- **Stack:** Node 26.13.1, SQLite nativo, zero dependências npm.
 - **Fase 5:** PWA, configurações de deploy, testes automatizados e documentação final.
-- **API:** `/api/health` → `{"ok":true,"version":"6.0-fase5","publicApi":"/api/public/v1","pwa":true}`.
-- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v6.0.0-fase5`).
+- **Fase 6:** mapa Leaflet real, rotas OSRM em cache, 47 cidades, progressão local → regional → nacional.
+- **Stack:** Node 26.13.1 (mínimo 22.5), SQLite nativo, zero dependências npm; Leaflet 1.9.4 servido localmente.
+- **API:** `/api/health` → `{"ok":true,"version":"7.0-fase6","publicApi":"/api/public/v1","pwa":true,"map":"leaflet-osrm"}`.
+- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v7.0.0-fase6`).
+- **Servidor:** `http://localhost:3000` e `http://192.168.1.252:3000`; exige PC ligado.
 
-## Fase 4 — o que foi acrescentado
+## Fase 6 — o que foi acrescentado
 
-- Tabelas `achievements` e `api_keys`; colunas de evento em `market` e `stock_sold_kg` em `companies`.
-- `WORLD_EVENTS` (4 eventos rotativos a cada 2 dias simulados) com efeitos reais em `price_mod` (novas ofertas), `fuel_mod` (custo na aceitação) e `time_mod` (duração da viagem).
-- `ACHIEVEMENTS` (8 conquistas) avaliadas no servidor após cada `advance()`; recompensa creditada como movimento idempotente.
-- `leaderboard()` no estado e em `GET /api/public/v1/leaderboard`.
-- Chaves de API: `POST /api/apikeys/create` (devolve o valor uma vez), `GET /api/apikeys`, `POST /api/apikeys/revoke`. Só o hash SHA-256 é guardado.
-- Rotas públicas `GET /api/public/v1/stats` e `/leaderboard` com `X-API-Key` e rate limit de 60/min em memória. O dispatcher distingue sessão (rotas privadas) de chave (rotas públicas).
-- Cliente com 7 separadores (novo: **Mundo**) e documentação da API no próprio painel.
-- **Correções de bugs:** ranking usava `users.name` (coluna correcta: `companies.name`); texto do evento mapeado de `event_message` → `message` no estado; refs de movimentos (`daily`, `loanint`, `wh`, `buy`, `hire`) passaram a incluir `companyId` para evitar colisão da `UNIQUE(ref_type, ref_id)` entre empresas.
+- `server/game.js`: 47 cidades reais, `TIERS`, `tierFor`, `nextTier`, `withinKm`, `offerVisible`, `routeKey`; `makeOffer(now, anchor, reachKm)` gera contratos locais com carga reduzida.
+- `server/db.js`: tabela `route_cache` (GeoJSON + km + duração + provider), `companyContext`, `ensureRoute`/`ensureRoutes`, `cachedRouteKm`. `advance()` garanta 3 ofertas locais por base e `getState()` filtra pelo alcance. `acceptOfferTx()` usa km reais em cache para custo/tempo.
+- `server/server.js`: `POST /api/geo/routes` (até 60 pares por pedido) e health `7.0-fase6`.
+- `public/index.html`: `[id=map]` Leaflet, controlos `#mapStyles` (dark/light/sat) e `#layerToggles`, HUD com `#hudTier`, scripts Leaflet locais antes de `app.js`.
+- `public/app.js`: `initMap`, `renderMap`, `requestRoutes`, `fitNetwork`, `partialGeometry`, `lineFor`; camadas `offers`, `trips`, `assets`, `history`, `companies`, `reach`. Posição da viagem interpolada sobre a geometria real. Cartão de progressão no Mercado.
+- `public/styles.css`: estilos do mapa, pins, HUD, `tier-card` e responsividade móvel.
+- `public/sw.js`: cache `ptlog-v7-fase6`, inclui `vendor/leaflet.js` e `vendor/leaflet.css`.
+- `public/vendor/leaflet.js` e `leaflet.css`: biblioteca local (sem CDN em runtime).
+- Carto `dark_all`/`light_all`, Esri World Imagery e OSRM público: sem chaves. Fallback haversine se OSRM falhar.
 
-## Testes Fase 4 (todos verdes)
+## Testes Fase 6 (todos verdes)
 
-Versão, estado com leaderboard/conquistas/chaves/evento, rotação do evento, entrega e conquista "first" com €200, recompensa creditada, ranking com posição, criação/listagem sem hash, 401 sem chave e com chave inválida, estatísticas e ranking públicos sem sessão, rate limit 60/min, revogação imediata. Interface: 7 separadores, 10 linhas de ranking, 8 conquistas, zero erros de consola, sem overflow.
+`npm test` → **14/14**. Inclui health `7.0-fase6`, PWA, registo/state, cidades/alcance/geometria `/api/geo/routes` (km 200–500, provider `osrm|fallback`), ciclo completo de contratação/entrega/conquista, API pública com rate limit, constantes, distâncias, custos, progressão e ofertas locais.
 
-## Fase 5 — o que foi acrescentado
+Validação no browser (servidor real, service worker e cache limpos): Leaflet ativo, 1 canvas de overlays, 47 cidades, 6 ofertas, 9 tiles CARTO carregados, 1 rota OSRM com 1374 pontos, HUD `Local · 130 km`, cartão de progressão presente, 3 estilos (dark/light/satélite) com tiles carregados, toggle de ofertas 18 → 0 → 18, zero erros de consola. Screenshot bloqueado apenas porque a janela desktop não estava visível.
 
-- PWA: `public/manifest.webmanifest`, `public/sw.js` (cache do app shell, nunca de `/api/`), `public/icon.svg`, link no HTML e registo no cliente.
-- `PTLOG_DB` em `server/db.js` permite escolher o ficheiro SQLite (usado pelos testes e pelos contentores).
-- Deploy: `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `render.yaml`, `fly.toml`, `DEPLOY.md`.
-- Testes: `tests/game.test.cjs` (unitários) e `tests/api.test.cjs` (integração com servidor isolado em BD temporária), corridos com `npm test`.
-- Docs finais: `README.md`, `CHANGELOG.md`, `ROADMAP.md`, `DEPLOY.md`; guia e handoff atualizados.
+## Correções feitas na Fase 6
+
+- `overlays` não declarado em `initMap` → `ReferenceError` ao arrancar.
+- Estilo satélite: `subdomains: undefined` fazia o Leaflet lançar `Cannot read properties of undefined (reading 'length')`; passou a `subdomains: c.subdomains || "abc"`.
+- Estilo claro: URL `positron` devolvia 404; corrigida para `light_all`.
+- Pool global de ofertas podia esgotar-se para bases novas → `refreshOffers()` passou a garantir 3 locais.
 
 ## Pendências não funcionais
 
