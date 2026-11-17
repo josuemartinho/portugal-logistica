@@ -4,14 +4,16 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const G = require("../server/game");
 
-test("constantes e catálogos da Fase 5", () => {
+test("constantes e catálogos da Fase 6", () => {
   assert.equal(G.CFG.capital, 25000);
   assert.equal(G.CFG.taxRate, 0.06);
-  assert.equal(G.CITIES.length, 17);
+  assert.ok(G.CITIES.length >= 45, `cidades=${G.CITIES.length}`);
+  assert.equal(G.TIERS.length, 3);
   assert.equal(G.RECURRING_ROUTES.length, 5);
   assert.equal(G.ACHIEVEMENTS.length, 8);
   assert.equal(G.WORLD_EVENTS.length, 4);
   assert.deepEqual(Object.keys(G.VANS), ["van", "truck"]);
+  assert.equal(G.routeKey("Porto","Lisboa"), G.routeKey("Lisboa","Porto"));
 });
 
 test("distância e tempo de viagem", () => {
@@ -56,4 +58,28 @@ test("ofertas geradas são válidas", () => {
     assert.ok(o.price > 0 && o.expires_at > o.created_at);
   }
   assert.notEqual(G.uid("x"), G.uid("x"));
+});
+
+test("progressão geográfica local → regional → nacional", () => {
+  assert.equal(G.tierFor({ deliveries:0, reputation:50, warehouses:1 }).key, "local");
+  assert.equal(G.tierFor({ deliveries:5, reputation:50, warehouses:1 }).key, "regional");
+  assert.equal(G.tierFor({ deliveries:0, reputation:80, warehouses:1 }).key, "national");
+  assert.equal(G.tierFor({ deliveries:0, reputation:50, warehouses:2 }).key, "regional");
+  assert.equal(G.tierFor({ deliveries:0, reputation:50, warehouses:1, cash:50000 }).key, "national");
+  const next = G.nextTier(G.TIERS[0], { deliveries:2, reputation:55, warehouses:1 });
+  assert.equal(next.key, "regional");
+  assert.ok(next.missing.some(x => x.includes("3 entregas")));
+});
+
+test("ofertas locais e visibilidade por alcance", () => {
+  const now = Date.now();
+  for (let i = 0; i < 40; i++) {
+    const o = G.makeOffer(now, "Faro", 130);
+    assert.ok(G.withinKm("Faro", o.from, 130), `${o.from} fora do alcance`);
+    assert.ok(G.withinKm("Faro", o.to, 130), `${o.to} fora do alcance`);
+    assert.ok(o.kg >= 150 && o.kg <= 500, `kg=${o.kg}`);
+    assert.ok(G.offerVisible(o, "Faro", G.TIERS[0]));
+  }
+  const long = G.makeOffer(now);
+  assert.ok(G.offerVisible(long, "Faro", G.TIERS[2]));
 });
