@@ -502,3 +502,8 @@ $("modalRoot").addEventListener("click",e=>{ if(e.target.classList.contains("ove
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&token) refresh(); });
 if(token) refresh(); else showAuth();
 setInterval(()=>{ if(token&&!document.hidden) refresh(); },1500);
+
+/* PWA — o service worker guarda apenas a interface; os dados vêm sempre do servidor. */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js").catch(()=>{});
+}
