@@ -1,6 +1,6 @@
 /* Service worker — cache do "app shell"; a API nunca é cacheada (o servidor é a fonte da verdade). */
-const CACHE = "ptlog-v6-fase5";
-const SHELL = ["/", "/index.html", "/app.js", "/styles.css", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "ptlog-v7-fase6";
+const SHELL = ["/", "/index.html", "/app.js", "/styles.css", "/vendor/leaflet.js", "/vendor/leaflet.css", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
