@@ -185,6 +185,17 @@ CREATE TABLE IF NOT EXISTS api_keys (
   created_at INTEGER NOT NULL,
   last_used_at INTEGER
 );
+/* Fase 6 — cache de rotas reais (GeoJSON) partilhado por todas as empresas. */
+CREATE TABLE IF NOT EXISTS route_cache (
+  route_key TEXT PRIMARY KEY,
+  from_city TEXT NOT NULL,
+  to_city TEXT NOT NULL,
+  km REAL NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  geometry TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `);
 
 /* Migrações leves — acrescentam colunas sem apagar dados existentes. */
@@ -228,6 +239,68 @@ function tx(fn) {
 }
 const round = n => Math.round(n*100)/100;
 const round3b = n => Math.round(n*1000)/1000;
+
+/* ---------- Fase 6: progressão geográfica e rotas reais ---------- */
+function companyContext(companyId){
+  const c = companyById(companyId);
+  const deliveries = db.prepare("SELECT COUNT(*) n FROM trips WHERE company_id=? AND processed_at IS NOT NULL").get(companyId).n;
+  const warehouses = db.prepare("SELECT COUNT(*) n FROM warehouses WHERE company_id=?").get(companyId).n;
+  const ctx = { deliveries, reputation:round(c.reputation), warehouses, cash:round(c.cash) };
+  const tier = G.tierFor(ctx);
+  return { ...ctx, tier, next:G.nextTier(tier, ctx) };
+}
+const pendingRoutes = new Map();
+async function ensureRoute(from, to){
+  const a = G.city(from), b = G.city(to);
+  if (!a || !b || from === to) return null;
+  const key = G.routeKey(from, to);
+  const cached = db.prepare("SELECT * FROM route_cache WHERE route_key=?").get(key);
+  if (cached) return {
+    key, from:cached.from_city, to:cached.to_city, km:cached.km,
+    durationMs:cached.duration_ms, geometry:JSON.parse(cached.geometry), provider:cached.provider
+  };
+  if (pendingRoutes.has(key)) return pendingRoutes.get(key);
+  const p = (async () => {
+    let km = G.distKm(a, b), durationMs = G.travelMs(km);
+    let geometry = [[a.la, a.lo], [b.la, b.lo]], provider = "fallback";
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${a.lo},${a.la};${b.lo},${b.la}?overview=full&geometries=geojson&steps=false`;
+      const res = await fetch(url, { signal:AbortSignal.timeout(5000), headers:{ "User-Agent":"PortugalLogistica/6" } });
+      if (res.ok) {
+        const j = await res.json(), r = j.routes && j.routes[0];
+        if (r && r.geometry && Array.isArray(r.geometry.coordinates) && r.geometry.coordinates.length > 1) {
+          km = r.distance / 1000;
+          durationMs = Math.round(r.duration * 1000);
+          geometry = r.geometry.coordinates.map(c => [c[1], c[0]]);
+          provider = "osrm";
+        }
+      }
+    } catch {}
+    const row = { key, from, to, km:round3b(km), durationMs, geometry, provider, updatedAt:Date.now() };
+    db.prepare(`INSERT OR REPLACE INTO route_cache(route_key,from_city,to_city,km,duration_ms,geometry,provider,updated_at)
+                VALUES(@key,@from,@to,@km,@durationMs,@geometry,@provider,@updatedAt)`)
+      .run({ ...row, geometry:JSON.stringify(geometry) });
+    return row;
+  })().finally(() => pendingRoutes.delete(key));
+  pendingRoutes.set(key, p);
+  return p;
+}
+async function ensureRoutes(pairs){
+  const unique = new Map();
+  for (const [a, b] of pairs || []) {
+    if (!a || !b || a === b) continue;
+    unique.set(G.routeKey(a, b), [a, b]);
+  }
+  const results = await Promise.all([...unique.values()].slice(0, 60).map(([a, b]) => ensureRoute(a, b)));
+  const out = {};
+  for (const r of results) if (r) out[r.key] = r;
+  return out;
+}
+function cachedRouteKm(from, to){
+  const r = db.prepare("SELECT km FROM route_cache WHERE route_key=?").get(G.routeKey(from, to));
+  return r ? round(r.km) : null;
+}
+
 function companyOf(userId){ return db.prepare("SELECT * FROM companies WHERE user_id=?").get(userId); }
 function companyById(id){ return db.prepare("SELECT * FROM companies WHERE id=?").get(id); }
 
@@ -410,18 +483,22 @@ function processNpcs(companyId, now){
   }
   db.prepare("DELETE FROM offers WHERE status!='open' AND expires_at<? AND id NOT IN (SELECT offer_id FROM trips)").run(now-3600000);
 }
-function refreshOffers(now){
-  const open = db.prepare("SELECT COUNT(*) n FROM offers WHERE status='open' AND expires_at>?").get(now).n;
+function refreshOffers(now, anchor, reachKm){
   const m = db.prepare("SELECT price_mod FROM market WHERE id=1").get();
   const priceMod = m ? m.price_mod : 0;
   const ins = db.prepare(`INSERT INTO offers(id,client,from_city,to_city,km,kg,m3,price,created_at,expires_at,status)
                           VALUES(@id,@client,@from_city,@to_city,@km,@kg,@m3,@price,@created_at,@expires_at,'open')`);
-  for (let i=open; i<CFG.offerTarget; i++) {
-    const o = makeOffer(now);
-    ins.run({ id:o.id, client:o.client, from_city:o.from, to_city:o.to,
-      km:o.km, kg:o.kg, m3:o.m3, price:round(o.price*(1+priceMod)),
-      created_at:o.created_at, expires_at:o.expires_at });
+  const insert = o => ins.run({ id:o.id, client:o.client, from_city:o.from, to_city:o.to,
+    km:o.km, kg:o.kg, m3:o.m3, price:round(o.price*(1+priceMod)),
+    created_at:o.created_at, expires_at:o.expires_at });
+  const openRows = db.prepare("SELECT from_city,to_city FROM offers WHERE status='open' AND expires_at>?").all(now);
+  let needLocal = 0;
+  if (anchor) {
+    const local = openRows.filter(o => G.withinKm(anchor, o.from_city, reachKm) && G.withinKm(anchor, o.to_city, reachKm)).length;
+    needLocal = Math.max(0, 3 - local);
+    for (let i=0;i<needLocal;i++) insert(makeOffer(now, anchor, reachKm));
   }
+  for (let i=openRows.length + needLocal; i<CFG.offerTarget; i++) insert(makeOffer(now));
 }
 function advance(companyId){
   const c = companyById(companyId);
@@ -436,7 +513,8 @@ function advance(companyId){
     processWorldEvent(companyId, now);
     processDays(companyId, now, c.last_day, c.created_at);
     processRecurring(companyId, now);
-    refreshOffers(now);
+    const expansion = companyContext(companyId);
+    refreshOffers(now, c.base_city, expansion.tier.reachKm);
     db.exec("COMMIT");
   } catch(e){ try{db.exec("ROLLBACK")}catch{} throw e; }
   processEvents(companyId, now);
@@ -448,9 +526,17 @@ function advance(companyId){
 function getState(companyId){
   advance(companyId);
   const c = companyById(companyId);
-  const offers = db.prepare("SELECT * FROM offers WHERE status='open' AND expires_at>? ORDER BY expires_at").all(c.now_ms)
+  const expansion = companyContext(companyId);
+  const allOffers = db.prepare("SELECT * FROM offers WHERE status='open' AND expires_at>? ORDER BY expires_at").all(c.now_ms)
     .map(o => ({ ...o, window: hhmm(o.created_at+2*3600000)+" – "+hhmm(o.created_at+8*3600000),
                  repBonus:Math.round((c.reputation-50)*0.2) }));
+  let offers = allOffers.filter(o => G.offerVisible(o, c.base_city, expansion.tier));
+  if (offers.length < 4 && expansion.tier.key !== "national") {
+    const extra = allOffers.filter(o => !offers.includes(o) &&
+      (G.withinKm(c.base_city, o.from_city, expansion.tier.reachKm) ||
+       G.withinKm(c.base_city, o.to_city, expansion.tier.reachKm)));
+    offers = [...offers, ...extra].slice(0, CFG.offerTarget);
+  }
   const trips = db.prepare("SELECT * FROM trips WHERE company_id=? ORDER BY id DESC LIMIT 20").all(companyId);
   const movements = db.prepare("SELECT * FROM movements WHERE company_id=? ORDER BY id DESC LIMIT 60").all(companyId);
   const logRows = db.prepare("SELECT * FROM event_log WHERE company_id=? ORDER BY id DESC LIMIT 40").all(companyId);
@@ -463,7 +549,10 @@ function getState(companyId){
     FROM warehouses w LEFT JOIN stock s ON s.warehouse_id=w.id WHERE w.company_id=? ORDER BY w.id`).all(companyId);
   return {
     company: { name:c.name, base:c.base_city, cash:round(c.cash), now:c.now_ms, speed:c.speed,
-               createdAt:c.created_at, autoDispatch:!!c.auto_dispatch, reputation:round(c.reputation) },
+               createdAt:c.created_at, autoDispatch:!!c.auto_dispatch, reputation:round(c.reputation),
+               tier:expansion.tier.key, tierName:expansion.tier.name, reachKm:expansion.tier.reachKm },
+    expansion,
+    geo: { cities:G.CITIES, tiers:G.TIERS, base:G.city(c.base_city) },
     market: { fuelPrice:G.fuelPrice(c.now_ms), taxRate:CFG.taxRate,
               event: (()=>{ const m=db.prepare("SELECT event_type,event_message,event_until,fuel_mod,price_mod,time_mod FROM market WHERE id=1").get();
                             return m && m.event_type ? { ...m, message:m.event_message, active:m.event_until>c.now_ms,
@@ -514,13 +603,16 @@ function acceptOfferTx(companyId, offerId, vehicleId, driverId){
   const m = db.prepare("SELECT * FROM market WHERE id=1").get();
   const fuelNow = round3b(G.fuelPrice(c.now_ms) + (m.fuel_mod||0));
   db.prepare("UPDATE market SET fuel_price=?,updated_at=? WHERE id=1").run(fuelNow, Date.now());
-  const cost = estimate(o.km, o.kg, true, fuelNow);
+  // Fase 6 — se a rota real já estiver em cache, usa a distância por estrada.
+  const routeKm = cachedRouteKm(o.from_city, o.to_city);
+  const km = routeKm && routeKm > 0 ? routeKm : o.km;
+  const cost = estimate(km, o.kg, true, fuelNow);
   if (c.cash < cost.cash) throw Error("Caixa insuficiente para os custos estimados.");
-  const start = c.now_ms, end = start + Math.round(travelMs(o.km)*(1+(m.time_mod||0)));
+  const start = c.now_ms, end = start + Math.round(travelMs(km)*(1+(m.time_mod||0)));
   const info = db.prepare(`INSERT INTO trips(company_id,offer_id,client,from_city,to_city,km,price,cost_cash,cost_economic,
                     vehicle_id,driver_id,start_at,end_at,kind,stock_kg,stock_value,from_wh,to_wh)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(companyId, o.id, o.client, o.from_city, o.to_city, o.km, o.price, round(cost.cash), round(cost.economic),
+      .run(companyId, o.id, o.client, o.from_city, o.to_city, km, o.price, round(cost.cash), round(cost.economic),
            v.id, d.id, start, end, o.kind, stockKg, stockValue, fromWh?fromWh.id:null, toWh?toWh.id:null);
   const tripId = Number(info.lastInsertRowid);
   db.prepare("UPDATE offers SET status='reserved', reserved_by=? WHERE id=? AND status='open'").run(companyId, o.id);
@@ -741,4 +833,5 @@ module.exports = { db, tx, companyOf, companyById, ensureBaseWarehouse, getState
   buyVehicle, hireDriver, setSpeed, advance, log,
   rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch,
   takeLoan, repayLoan, repairVehicle,
-  leaderboard, publicStats, createApiKey, listApiKeys, revokeApiKey, authApiKey };
+  leaderboard, publicStats, createApiKey, listApiKeys, revokeApiKey, authApiKey,
+  companyContext, ensureRoute, ensureRoutes, cachedRouteKm };
