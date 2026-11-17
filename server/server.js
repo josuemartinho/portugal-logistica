@@ -8,7 +8,8 @@ const crypto = require("node:crypto");
 const { db, tx, companyOf, getState, acceptOffer, buyVehicle, hireDriver, setSpeed, advance,
   ensureBaseWarehouse, rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch,
   takeLoan, repayLoan, repairVehicle,
-  publicStats, leaderboard, createApiKey, listApiKeys, revokeApiKey, authApiKey } = require("./db");
+  publicStats, leaderboard, createApiKey, listApiKeys, revokeApiKey, authApiKey,
+  ensureRoutes } = require("./db");
 const { CFG, BASE_CITIES } = require("./game");
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -85,7 +86,7 @@ const routes = {
     if (h.startsWith("Bearer ")) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash(h.slice(7)));
     json(res, 200, { ok:true });
   },
-  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"6.0-fase5", publicApi:"/api/public/v1", pwa:true }),
+  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"7.0-fase6", publicApi:"/api/public/v1", pwa:true, map:"leaflet-osrm" }),
   "GET /api/state": async (req,res,company) => json(res, 200, getState(company.id)),
   "POST /api/offers/accept": async (req,res,company) => {
     const b = await body(req);
@@ -137,6 +138,12 @@ const routes = {
   "POST /api/vehicles/repair": async (req,res,company) => {
     const b = await body(req);
     json(res, 200, repairVehicle(company.id, b.vehicleId));
+  },
+  // Fase 6 — geometria real das rotas (cacheada no SQLite)
+  "POST /api/geo/routes": async (req,res) => {
+    const b = await body(req);
+    const pairs = Array.isArray(b.pairs) ? b.pairs.slice(0, 60) : [];
+    json(res, 200, { ok:true, routes:await ensureRoutes(pairs) });
   },
   // Fase 4 — chaves de API (gestão privada)
   "POST /api/apikeys/create": async (req,res,company) => {
