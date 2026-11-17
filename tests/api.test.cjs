@@ -56,7 +56,8 @@ after(async () => {
 test("health e versão da Fase 6", async () => {
   const h = await call("/api/health");
   assert.equal(h.status, 200);
-  assert.equal(h.body.version, "7.0-fase6");
+  assert.equal(h.body.version, "8.0-fase7");
+  assert.equal(h.body.pois, true);
   assert.equal(h.body.pwa, true);
   assert.equal(h.body.publicApi, "/api/public/v1");
   assert.equal(h.body.map, "leaflet-osrm");
@@ -107,6 +108,12 @@ test("mapa real: cidades, alcance e geometria da rota", async () => {
   assert.equal(s.company.tier, "local");
   assert.equal(s.company.reachKm, 130);
   assert.ok(s.geo.cities.length >= 45);
+  assert.ok(Array.isArray(s.geo.poiCategories) && s.geo.poiCategories.length >= 7);
+  assert.ok(Array.isArray(s.geo.pois) && s.geo.pois.length >= 100);
+  assert.ok(s.geo.pois.some(p => p.brand === "Stellantis" && p.featured));
+  assert.ok(s.geo.pois.some(p => p.brand === "Delta Cafés" && p.featured));
+  assert.ok(s.geo.pois.some(p => p.brand === "Sofrapa" && p.featured));
+  assert.ok(s.geo.pois.some(p => p.cat === "farmacia") && s.geo.pois.some(p => p.cat === "autopecas"));
   assert.ok(s.expansion.next && s.expansion.next.key === "regional");
   for (const o of s.offers) {
     const a = s.geo.cities.find(c => c.n === o.from_city);
