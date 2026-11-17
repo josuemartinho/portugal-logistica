@@ -15,6 +15,7 @@ Este arquivo é a **fonte da verdade** do projeto. Quem pegar o trabalho depois 
 - **Sessão OpenCode:** título `Continuação da criação do jogo`, id `ses_e15c2fc75ffeSvxIZfUHszNIXQ`.
 - **Serviço OpenCode:** v2.3.0, `http://127.0.0.1:28894`, remote via OpenTunnel ativado.
 - **Servidor de testes do jogo:** `http://127.0.0.1:8080/index.html` (LAN `http://192.168.1.252:8080/index.html`).
+- **Publicado:** `https://josuemartinho.github.io/portugal-logistica/` (repo `josuemartinho/portugal-logistica`, Pages ativo, build `built`, verificado HTTP 200 sem erros de consola).
 
 ## O que já funciona (testado no navegador, sem erros de consola)
 
@@ -36,6 +37,6 @@ Criar empresa, contratar motorista, comprar veículo, 11 ofertas de clientes rea
 
 ## Próximos passos
 
-- [ ] Publicar no GitHub Pages (depende de token de acesso do usuário).
+- [x] Publicar no GitHub Pages — concluído em 17/11/2026.
 - [ ] Continuar testes no celular recarregando a URL do jogo.
 - [ ] Fase 1 quando o protótipo estiver fechado.
