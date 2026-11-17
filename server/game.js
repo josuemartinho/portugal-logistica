@@ -49,17 +49,73 @@ const CITIES = [
   { n:"Santarém",lo:-8.69,la:39.24 },{ n:"Setúbal",lo:-8.89,la:38.52 },
   { n:"Évora",lo:-7.91,la:38.57 },{ n:"Beja",lo:-7.86,la:38.02 },
   { n:"Faro",lo:-7.93,la:37.02 },{ n:"Portimão",lo:-8.54,la:37.14 },
+  { n:"Lagos",lo:-8.67,la:37.10 },{ n:"Tavira",lo:-7.65,la:37.13 },
   { n:"Viseu",lo:-7.91,la:40.66 },{ n:"Guarda",lo:-7.27,la:40.54 },
   { n:"Castelo Branco",lo:-7.49,la:39.82 },{ n:"Vila Real",lo:-7.75,la:41.30 },
-  { n:"Bragança",lo:-6.76,la:41.80 }
+  { n:"Bragança",lo:-6.76,la:41.80 },{ n:"Viana do Castelo",lo:-8.83,la:41.69 },
+  { n:"Guimarães",lo:-8.30,la:41.44 },{ n:"Famalicão",lo:-8.60,la:41.40 },
+  { n:"Matosinhos",lo:-8.69,la:41.18 },{ n:"Vila Nova de Gaia",lo:-8.61,la:41.12 },
+  { n:"Espinho",lo:-8.64,la:41.01 },{ n:"Ovar",lo:-8.63,la:40.86 },
+  { n:"Águeda",lo:-8.45,la:40.57 },{ n:"Figueira da Foz",lo:-8.86,la:40.15 },
+  { n:"Caldas da Rainha",lo:-9.14,la:39.40 },{ n:"Torres Vedras",lo:-9.26,la:39.09 },
+  { n:"Sintra",lo:-9.38,la:38.80 },{ n:"Cascais",lo:-9.42,la:38.70 },
+  { n:"Almada",lo:-9.16,la:38.68 },{ n:"Seixal",lo:-9.10,la:38.64 },
+  { n:"Barreiro",lo:-9.07,la:38.66 },{ n:"Montijo",lo:-8.97,la:38.70 },
+  { n:"Palmela",lo:-8.89,la:38.57 },{ n:"Alcácer do Sal",lo:-8.51,la:38.37 },
+  { n:"Grândola",lo:-8.57,la:38.17 },{ n:"Santiago do Cacém",lo:-8.69,la:38.01 },
+  { n:"Sines",lo:-8.87,la:37.95 },{ n:"Elvas",lo:-7.09,la:38.88 },
+  { n:"Estremoz",lo:-7.59,la:38.84 },{ n:"Tomar",lo:-8.41,la:39.60 },
+  { n:"Abrantes",lo:-8.19,la:39.47 },{ n:"Lamego",lo:-7.71,la:41.10 },
+  { n:"Chaves",lo:-7.47,la:41.74 }
 ];
-const BASE_CITIES = ["Lisboa","Porto","Braga","Aveiro","Coimbra","Faro","Évora"];
+const BASE_CITIES = ["Lisboa","Porto","Braga","Aveiro","Coimbra","Faro","Évora","Setúbal","Viseu","Guimarães","Sintra"];
 const CLIENTS = ["Continente","Pingo Doce","Worten","Delta Cafés","Vista Alegre","The Navigator Company"];
 const DNAMES = ["Rui Almeida","Sofia Marques","Pedro Nunes","Ana Costa","Miguel Faria","Inês Lopes","Tiago Silva","Carla Dias"];
 const VANS = {
   van:   { name:"Carrinha",    price:14000, kg:800,  m3:4,  l100:8.0 },
   truck: { name:"Camião leve", price:24000, kg:3000, m3:14, l100:12.5 }
 };
+
+/* Fase 6 — progressão geográfica: a empresa começa local e expande-se. */
+const TIERS = [
+  { key:"local",    name:"Local",    reachKm:130,   color:"#36d99a", desc:"Distribuição na sua cidade e arredores." },
+  { key:"regional", name:"Regional", reachKm:320,   color:"#5fb0ff", desc:"Contratos em toda a região." },
+  { key:"national", name:"Nacional", reachKm:99999, color:"#ffc75a", desc:"Rede nacional sem limites." }
+];
+function tierFor(ctx = {}){
+  const d = ctx.deliveries || 0, rep = ctx.reputation || 50;
+  const wh = ctx.warehouses || 1, cash = ctx.cash || 0;
+  if (d >= 15 || rep >= 80 || wh >= 3 || cash >= 50000) return TIERS[2];
+  if (d >= 5  || rep >= 65 || wh >= 2) return TIERS[1];
+  return TIERS[0];
+}
+function nextTier(tier, ctx = {}){
+  const i = TIERS.findIndex(t => t.key === tier.key);
+  if (i < 0 || i >= TIERS.length - 1) return null;
+  const next = TIERS[i + 1];
+  const d = ctx.deliveries || 0, rep = ctx.reputation || 50, wh = ctx.warehouses || 1;
+  const missing = [];
+  if (next.key === "regional") {
+    if (d < 5) missing.push(`${5 - d} entregas`);
+    if (rep < 65) missing.push(`rep ${Math.ceil(65 - rep)}`);
+    if (wh < 2) missing.push("2.º armazém");
+  } else {
+    if (d < 15) missing.push(`${15 - d} entregas`);
+    if (rep < 80) missing.push(`rep ${Math.ceil(80 - rep)}`);
+    if (wh < 3) missing.push("3.º armazém");
+  }
+  return { ...next, missing };
+}
+function withinKm(base, cityName, km){
+  const a = city(base), b = city(cityName);
+  return a && b ? distKm(a, b) <= km : false;
+}
+function offerVisible(o, base, tier){
+  if (!tier || tier.key === "national") return true;
+  return withinKm(base, o.from_city || o.from, tier.reachKm) &&
+         withinKm(base, o.to_city || o.to, tier.reachKm);
+}
+function routeKey(a, b){ return [a, b].sort().join("|"); }
 const OUTLINE = [
   [-8.85,42.15],[-8.60,42.14],[-8.30,42.05],[-8.05,41.95],[-7.85,41.92],[-7.65,41.88],
   [-7.40,41.92],[-7.10,41.95],[-6.80,42.00],[-6.55,41.92],[-6.30,41.78],[-6.18,41.60],
@@ -114,11 +170,21 @@ function estimate(km,kg,hasDriver,diesel){
   const rent=CFG.rent/30/8*hours;
   return { fuel,toll,wear,cash,economic:cash+wage+rent };
 }
-function makeOffer(now){
-  const a=pick(CITIES); let b=pick(CITIES); while(b.n===a.n) b=pick(CITIES);
-  const km=distKm(a,b), kg=Math.round((180+Math.random()*520)/50)*50;
-  const m3=Math.round((kg/230+0.4)*10)/10;
-  const price=Math.round((30+km*(0.55+Math.random()*0.22)+kg*0.02)/5)*5;
+function makeOffer(now, anchor, reachKm){
+  let pool = CITIES;
+  if (anchor) {
+    const near = CITIES.filter(c => distKm(city(anchor), c) <= (reachKm || 130));
+    if (near.length >= 2) pool = near;
+  }
+  const a = pick(pool);
+  let b = pick(pool), guard = 0;
+  while (b.n === a.n && guard++ < 30) b = pick(pool);
+  if (b.n === a.n) b = pick(CITIES.filter(c => c.n !== a.n));
+  const scale = !anchor ? 1 : (reachKm || 130) <= 160 ? 0.65 : (reachKm || 130) <= 400 ? 0.85 : 1;
+  const km = distKm(a, b);
+  const kg = Math.max(150, Math.round((180 + Math.random()*520) * scale / 50) * 50);
+  const m3 = Math.round((kg/230 + 0.4)*10)/10;
+  const price = Math.round((30 + km*(0.55+Math.random()*0.22) + kg*0.02)/5)*5;
   return {
     id:uid("o"), client:pick(CLIENTS), from:a.n, to:b.n, km:Math.round(km), kg, m3, price,
     created_at:now, expires_at:now+(2+Math.random()*5)*3600000, status:"open", reserved_by:null
@@ -127,5 +193,6 @@ function makeOffer(now){
 function hhmm(t){ return new Date(t).toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"}); }
 
 module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,DNAMES,VANS,RECURRING_ROUTES,OUTLINE,ROADS,RIVERS,
+  TIERS,tierFor,nextTier,withinKm,offerVisible,routeKey,
   pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm,fuelPrice,repairCost,
   ACHIEVEMENTS,WORLD_EVENTS };
