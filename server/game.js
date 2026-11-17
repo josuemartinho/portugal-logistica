@@ -8,7 +8,10 @@ const CFG = {
   hireCost: 300, maxVehicles: 2, maxDrivers: 2, offerTarget: 11,
   // Fase 2 — armazéns e mercadorias
   warehouseDeposit: 800, warehouseRent: 120, maxWarehouses: 3,
-  goodsBuy: 0.50, goodsSell: 0.68, maxRecurring: 3
+  goodsBuy: 0.50, goodsSell: 0.68, maxRecurring: 3,
+  // Fase 3 — economia dinâmica
+  taxRate: 0.06, loanFee: 0.03, loanDaily: 0.005, loanMax: 20000,
+  repStart: 50, repGain: 2, repLoss: 4, breakdownAt: 35, wearPerKm: 0.012
 };
 
 /* Rotas recorrentes (Fase 2). O contrato gera uma oferta periódica. */
@@ -77,8 +80,16 @@ function distKm(a,b){
   return 2*R*Math.asin(Math.sqrt(h))*CFG.roadFactor;
 }
 function travelMs(km){ return (CFG.loadMin + km/CFG.speedKmh*60 + CFG.unloadMin)*60000; }
-function estimate(km,kg,hasDriver){
-  const fuel=km/100*8*CFG.diesel, toll=km*CFG.motorwayShare*CFG.tollPerKm, wear=km*CFG.wearPerKm;
+/* Preço do gasóleo oscila com o tempo simulado (1,45 – 2,05 €/L). */
+function fuelPrice(now){
+  const d = now/86400000;
+  return round3(CFG.diesel + 0.20*Math.sin(d/3) + 0.10*Math.sin(d/7) + 0.05*Math.sin(d/1.7));
+}
+const round3 = n => Math.round(n*1000)/1000;
+function repairCost(condition){ return Math.round(Math.max(0,100-condition)*12); }
+function estimate(km,kg,hasDriver,diesel){
+  const price = diesel === undefined ? CFG.diesel : diesel;
+  const fuel=km/100*8*price, toll=km*CFG.motorwayShare*CFG.tollPerKm, wear=km*CFG.wearPerKm;
   const cash=fuel+toll+wear, hours=km/CFG.speedKmh;
   const wage=hasDriver ? CFG.wage*(1+CFG.social)/30/8*hours : 0;
   const rent=CFG.rent/30/8*hours;
@@ -97,4 +108,4 @@ function makeOffer(now){
 function hhmm(t){ return new Date(t).toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"}); }
 
 module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,DNAMES,VANS,RECURRING_ROUTES,OUTLINE,ROADS,RIVERS,
-  pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm };
+  pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm,fuelPrice,repairCost };
