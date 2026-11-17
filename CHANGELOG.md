@@ -1,5 +1,16 @@
 # Changelog
 
+## v8.0.0 — Fase 7 (17/11/2026)
+
+- **Mapa passa a ser uma aba:** a faixa de operações/contratos por baixo do mapa foi removida. A navegação principal tem 8 separadores, com **Mapa** em primeiro e **Contratos** (antes "Mercado") em segundo. Só uma vista ocupa o ecrã: mapa inteiro ou painel inteiro.
+- **Mapa mostra apenas rotas em execução** (traçado real OSRM, progresso e destino). Ofertas, histórico e outras empresas deixaram de ser desenhadas no mapa; continuam disponíveis nos separadores próprios.
+- **Rede de 167 pontos de interesse reais** marcados no mapa como clientes em potencial: supermercados (Pingo Doce, Continente, Lidl), farmácias, oficinas, autopeças, indústria (Stellantis, Delta Cafés, Sofrapa, Navigator, Vista Alegre, Galp) e logística (Sines, Abrantes). 11 pontos de destaque com marcador maior.
+- Filtro por categoria de POI no mapa (`togglePoiCat()`), com legenda e contador de clientes/rotas. Marcadores com popup de marca, cidade e categoria.
+- **Estilos do mapa corrigidos e reforçados:** escolha persistida em `localStorage` (`ptlog_map_style`), aplicação ao arranque, `tileerror` com dois níveis de *fallback* (CARTO → OSM, Esri → Esri alternativo → OSM) e cor de fundo distinta por estilo para o caso de nenhum tile carregar no telemóvel.
+- Service worker atualizado para `ptlog-v8.0.0-fase7`, com verificação de atualização ao arrancar e ao voltar à aplicação.
+- Health: `{"ok":true,"version":"8.0-fase7",...,"map":"leaflet-osrm","pois":true}`.
+- `npm test`: **15/15**. Validação em 320, 390 e 1200 px: sem overflow, aba Mapa/Contratos alterna corretamente, 167 marcadores, três estilos com tiles carregados, zero erros de consola.
+
 ## v7.0.1 — Fase 6 (correção mobile, 17/11/2026)
 
 - Isolado o `stacking context` do mapa (`isolation:isolate; z-index:0` em `.mapwrap`): os controlos do Leaflet e os toggles (z-index 500–1000) deixaram de aparecer por cima do modal de autenticação. Overlay passou a `z-index:1000` e toast a `1100`.
