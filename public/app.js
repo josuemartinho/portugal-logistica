@@ -4,6 +4,7 @@
 const TOKEN_KEY = "ptlog_fase1_token";
 let token = localStorage.getItem(TOKEN_KEY) || null;
 let S = null, tab = "mercado", authMode = "login";
+const ui = { qty:{}, whCity:"Évora" };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -26,6 +27,8 @@ const I = {
   arrow:'<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   pin:'<svg viewBox="0 0 24 24"><path d="M12 22s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   box:'<svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10"/></svg>',
+  warehouse:'<svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12M3 21h18M8 21v-7h8v7M8 10h8"/></svg>',
+  repeat:'<svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg>',
   check:'<svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>',
   plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   shield:'<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>'
@@ -251,13 +254,13 @@ function renderStrip(){
 }
 
 /* ---------- separadores ---------- */
-const TABS=[["mercado","Mercado","market"],["frota","Frota","fleet"],["equipa","Equipa","team"],["financas","Finanças","finance"],["log","Histórico","history"]];
+const TABS=[["mercado","Mercado","market"],["armazens","Armazéns","warehouse"],["frota","Frota","fleet"],["equipa","Equipa","team"],["financas","Finanças","finance"],["log","Histórico","history"]];
 function renderTabs(){
   const count=S.offers.length;
   $("tabs").innerHTML=TABS.map(([k,n,ico])=>`<button class="tab ${tab===k?"on":""}" onclick="setTab('${k}')">${I[ico]}<span>${n}</span>${k==="mercado"&&count?`<i class="badge">${count}</i>`:""}</button>`).join("");
 }
 function renderContent(){
-  $("tabContent").innerHTML=({mercado:tabMarket,frota:tabFleet,equipa:tabStaff,financas:tabFinance,log:tabLog})[tab]();
+  $("tabContent").innerHTML=({mercado:tabMarket,armazens:tabWarehouses,frota:tabFleet,equipa:tabStaff,financas:tabFinance,log:tabLog})[tab]();
 }
 function tabMarket(){
   if(!S.offers.length) return empty("Mercado vazio","Volte dentro de minutos ou acelere o tempo no topo.");
@@ -266,16 +269,18 @@ function tabMarket(){
     <p class="lead">A receita é paga na conclusão. A margem já inclui combustível, portagens, desgaste, ordenado e renda.</p>`+
     S.offers.map(o=>{
       const price=money(o.price), inicial=o.client.slice(0,2).toUpperCase();
-      const ok=freeVans.some(v=>VANS[v.model].kg>=o.kg&&VANS[v.model].m3>=o.m3)&&freeDrivers.length>0;
+      const wh=o.needs_stock?S.warehouses.find(w=>w.city===o.from_city):null;
+      const stockOk=!o.needs_stock||(wh&&wh.kg>=o.kg);
+      const ok=freeVans.some(v=>VANS[v.model].kg>=o.kg&&VANS[v.model].m3>=o.m3)&&freeDrivers.length>0&&stockOk;
       const left=clamp((o.expires_at-S.company.now)/(o.expires_at-o.created_at),0,1);
       const est=Math.round(o.km/100*8*1.75 + o.km*.6*.10 + o.km*.10);
       const margin=o.price-est;
       return `<div class="card"><div class="card-head">
           <div class="avatar">${esc(inicial)}</div>
-          <div class="card-title"><strong>${esc(o.client)}</strong><small>Contrato · ${esc(o.from_city)} → ${esc(o.to_city)}</small></div>
+          <div class="card-title"><strong>${esc(o.client)}</strong><small>${o.kind==="recurring"?"Recorrente · ":"Contrato · "}${esc(o.from_city)} → ${esc(o.to_city)}</small></div>
           <div class="big-price"><small>receita</small><strong>${price}</strong></div></div>
         <div class="route"><div class="route-city"><small>Origem</small><strong>${esc(o.from_city)}</strong></div><div class="route-line"></div><div class="route-city right"><small>Destino</small><strong>${esc(o.to_city)}</strong></div></div>
-        <div class="chips"><span class="chip">${o.km} km</span><span class="chip">${o.kg} kg</span><span class="chip">${o.m3} m³</span><span class="chip">${esc(o.window)}</span></div>
+        <div class="chips"><span class="chip">${o.km} km</span><span class="chip">${o.kg} kg</span><span class="chip">${o.m3} m³</span><span class="chip">${esc(o.window)}</span>${o.needs_stock?`<span class="chip" style="color:${stockOk?"var(--green)":"var(--red)"}">stock ${Math.round(wh?wh.kg:0)} kg</span>`:""}</div>
         <div class="card-foot">
           <div><div class="metric"><small>margem estimada</small><strong class="${margin>=0?"":"neg"}" style="${margin>=0?"color:var(--green)":""}">${money(margin)}</strong></div>
             <div class="hint">custo de caixa ≈ ${money(est)}</div></div>
@@ -283,6 +288,39 @@ function tabMarket(){
           <button class="btn primary sm" ${ok?"":"disabled"} onclick="openAccept('${o.id}')">${ok?"Aceitar":"Sem recursos"} ${ok?I.arrow:""}</button>
         </div></div>`;
     }).join("");
+}
+function tabWarehouses(){
+  const whs=S.warehouses, active=S.recurring.filter(r=>r.active);
+  const free=CITIES.map(c=>c.n).filter(n=>!whs.some(w=>w.city===n));
+  const auto=S.company.autoDispatch;
+  return `<div class="section-head"><div><p class="eyebrow">Fase 2 · logística de stock</p><h2>Armazéns</h2></div><span class="count">${whs.length}/3</span></div>
+    <p class="lead">Compre mercadoria barata na origem, entregue-a com um contrato recorrente e venda-a no destino com margem.</p>
+    <button class="btn ${auto?"primary":"ghost"} wide" onclick="toggleAuto()">${I.repeat} Expedição automática: ${auto?"ATIVA":"desligada"}</button>
+    <div class="hint">${auto?"O servidor reserva e envia contratos recorrentes assim que há veículo, motorista e stock.":"Ative para o servidor despachar sem intervenção."}</div>
+    <div class="subhead">Armazéns da empresa</div>
+    ${whs.map(w=>`<div class="card"><div class="card-head"><div class="avatar g">${I.warehouse.replace('<svg','<svg style="width:18px;height:18px"')}</div>
+      <div class="card-title"><strong>${esc(w.city)}</strong><small>${w.rent_monthly?money(w.rent_monthly)+"/mês":"Base incluída"} · ${esc(w.city===S.company.base?"sede":"filial")}</small></div>
+      <div class="big-price"><small>stock</small><strong>${Math.round(w.kg)} kg</strong></div></div>
+      <div class="chips" style="margin-top:9px"><span class="chip">valor ${money(w.stock_value)}</span><span class="chip">compra ${money(0.5)}/kg</span><span class="chip">venda ${money(0.68)}/kg</span></div>
+      <div class="card-foot"><div class="metric"><small>quantidade</small>
+        <input class="qty" type="number" min="10" step="10" value="${ui.qty[w.id]||100}" oninput="ui.qty[${w.id}]=this.value"></div>
+        <button class="btn ghost sm" onclick="buyWh(${w.id})">Comprar</button>
+        <button class="btn primary sm" ${w.kg>=10?"":"disabled"} onclick="sellWh(${w.id})">Vender</button></div></div>`).join("")}
+    <div class="subhead">Abrir novo armazém · ${money(800)} de caução</div>
+    ${free.length?`<div class="card"><div class="card-foot"><select id="whCity" onchange="ui.whCity=this.value">${free.map(c=>`<option ${ui.whCity===c?"selected":""}>${c}</option>`).join("")}</select>
+      <button class="btn primary sm" onclick="rentWh()">Abrir armazém</button></div></div>`:`<div class="hint">Já tem armazéns em todas as cidades disponíveis.</div>`}
+    <div class="subhead">Contratos ativos · ${active.length}/${S.recurringCatalog.length}</div>
+    ${active.length?active.map(r=>`<div class="card"><div class="card-head"><div class="avatar a">${I.repeat.replace('<svg','<svg style="width:17px;height:17px"')}</div>
+      <div class="card-title"><strong>${esc(r.client)}</strong><small>${esc(r.from_city)} → ${esc(r.to_city)} · ${r.kg} kg</small></div>
+      <div class="big-price"><small>por entrega</small><strong>${money(r.price)}</strong></div></div>
+      <div class="card-foot"><span class="hint">Próxima: ${dt(r.next_due_at)}</span><button class="btn ghost sm" onclick="cancelRec(${r.id})">Cancelar</button></div></div>`).join(""):empty("Sem contratos recorrentes","Assine uma rota no catálogo abaixo.")}
+    <div class="subhead">Catálogo de rotas</div>
+    ${S.recurringCatalog.map(r=>{const signed=active.some(a=>a.route_id===r.id);
+      return `<div class="card"><div class="card-head"><div class="avatar">${esc(r.client.slice(0,2).toUpperCase())}</div>
+        <div class="card-title"><strong>${esc(r.client)}</strong><small>${esc(r.from)} → ${esc(r.to)} · cada ${r.days} dias</small></div>
+        <div class="big-price"><small>receita</small><strong>${money(r.price)}</strong></div></div>
+        <div class="card-foot"><span class="hint">${r.kg} kg por entrega</span>
+          <button class="btn ${signed?"ghost":"primary"} sm" ${signed?"disabled":""} onclick="signRec('${r.id}')">${signed?"Assinada":"Assinar"}</button></div></div>`;}).join("")}`;
 }
 function tabFleet(){
   const owned=S.vehicles.map(v=>{
@@ -341,6 +379,12 @@ function tabLog(){
 function setSpeed(v){ act(()=>api("/api/speed","POST",{speed:v})); }
 function buyVan(model){ act(()=>api("/api/vehicles/buy","POST",{model})); }
 function hire(){ act(()=>api("/api/drivers/hire","POST",{})); }
+function toggleAuto(){ act(()=>api("/api/autodispatch","POST",{on:!S.company.autoDispatch})); }
+function rentWh(){ act(()=>api("/api/warehouses/rent","POST",{city:ui.whCity})); }
+function buyWh(id){ act(()=>api("/api/inventory/buy","POST",{warehouseId:id,kg:Number(ui.qty[id]||100)})); }
+function sellWh(id){ act(()=>api("/api/inventory/sell","POST",{warehouseId:id,kg:Number(ui.qty[id]||100)})); }
+function signRec(routeId){ act(()=>api("/api/recurring/sign","POST",{routeId})); }
+function cancelRec(id){ act(()=>api("/api/recurring/cancel","POST",{id})); }
 function openAccept(id){
   const o=S.offers.find(x=>x.id===id); if(!o) return;
   const vans=S.vehicles.filter(v=>v.status==="idle"&&VANS[v.model].kg>=o.kg&&VANS[v.model].m3>=o.m3);
