@@ -14,6 +14,25 @@ const CFG = {
   repStart: 50, repGain: 2, repLoss: 4, breakdownAt: 35, wearPerKm: 0.012
 };
 
+/* Conquistas (Fase 4). A condição é avaliada no servidor. */
+const ACHIEVEMENTS = [
+  { key:"first",      name:"Primeira entrega",     desc:"Conclua 1 entrega",           reward:200 },
+  { key:"five",       name:"Operador experiente",  desc:"Conclua 5 entregas",          reward:500 },
+  { key:"fifteen",    name:"Frota em movimento",   desc:"Conclua 15 entregas",         reward:1000 },
+  { key:"warehouse",  name:"Rede nacional",        desc:"Tenha 2 armazéns",            reward:400 },
+  { key:"fleet",      name:"Dois veículos",        desc:"Compre 2 veículos",           reward:400 },
+  { key:"reputation", name:"Referência no setor",  desc:"Alcance reputação 80",        reward:600 },
+  { key:"rich",       name:"Empresa próspera",     desc:"Atinge €50 000 em caixa",     reward:800 },
+  { key:"trader",     name:"Comerciante",          desc:"Venda 1 000 kg de mercadoria",reward:400 }
+];
+/* Eventos mundiais (Fase 4). Rotativos a cada 2 dias simulados. */
+const WORLD_EVENTS = [
+  { type:"fuel",      name:"Pico do petróleo",  desc:"Gasóleo +€0,35/L", fuelMod:0.35, priceMod:0,    timeMod:0 },
+  { type:"fair",      name:"Feira de negócios", desc:"Ofertas +12%",     fuelMod:0,    priceMod:0.12, timeMod:0 },
+  { type:"strike",    name:"Greve de camionistas",desc:"Viagens +25% mais lentas", fuelMod:0, priceMod:0, timeMod:0.25 },
+  { type:"surplus",   name:"Excedente de gasóleo",desc:"Gasóleo −€0,20/L",fuelMod:-0.20,priceMod:0,   timeMod:0 }
+];
+
 /* Rotas recorrentes (Fase 2). O contrato gera uma oferta periódica. */
 const RECURRING_ROUTES = [
   { id:"r1", client:"Continente", from:"Évora",    to:"Lisboa", kg:300, price:520, days:7 },
@@ -108,4 +127,5 @@ function makeOffer(now){
 function hhmm(t){ return new Date(t).toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"}); }
 
 module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,DNAMES,VANS,RECURRING_ROUTES,OUTLINE,ROADS,RIVERS,
-  pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm,fuelPrice,repairCost };
+  pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm,fuelPrice,repairCost,
+  ACHIEVEMENTS,WORLD_EVENTS };
