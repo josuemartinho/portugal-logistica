@@ -4,7 +4,7 @@
 const TOKEN_KEY = "ptlog_fase1_token";
 let token = localStorage.getItem(TOKEN_KEY) || null;
 let S = null, tab = "mercado", authMode = "login";
-const ui = { qty:{}, whCity:"Évora", loanAmt:2000 };
+const ui = { qty:{}, whCity:"Évora", loanAmt:2000, keyLabel:"" };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -33,7 +33,11 @@ const I = {
   star:'<svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 7 1-5 4.9 1.2 7L12 18l-6.2 3.2L7 14.2 2 9.3l7-1z"/></svg>',
   check:'<svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>',
   plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
-  shield:'<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>'
+  shield:'<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  globe:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
+  trophy:'<svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3M9 20h6M12 14v6"/></svg>',
+  key:'<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2 2M14 9l2 2"/></svg>',
+  bolt:'<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>'
 };
 
 const CITIES = [
@@ -258,13 +262,13 @@ function renderStrip(){
 }
 
 /* ---------- separadores ---------- */
-const TABS=[["mercado","Mercado","market"],["armazens","Armazéns","warehouse"],["frota","Frota","fleet"],["equipa","Equipa","team"],["financas","Finanças","finance"],["log","Histórico","history"]];
+const TABS=[["mercado","Mercado","market"],["armazens","Armazéns","warehouse"],["frota","Frota","fleet"],["equipa","Equipa","team"],["financas","Finanças","finance"],["mundo","Mundo","globe"],["log","Histórico","history"]];
 function renderTabs(){
-  const count=S.offers.length;
-  $("tabs").innerHTML=TABS.map(([k,n,ico])=>`<button class="tab ${tab===k?"on":""}" onclick="setTab('${k}')">${I[ico]}<span>${n}</span>${k==="mercado"&&count?`<i class="badge">${count}</i>`:""}</button>`).join("");
+  const count=S.offers.length, ach=S.achievements.length;
+  $("tabs").innerHTML=TABS.map(([k,n,ico])=>`<button class="tab ${tab===k?"on":""}" onclick="setTab('${k}')">${I[ico]}<span>${n}</span>${k==="mercado"&&count?`<i class="badge">${count}</i>`:""}${k==="mundo"&&ach?`<i class="badge">${ach}</i>`:""}</button>`).join("");
 }
 function renderContent(){
-  $("tabContent").innerHTML=({mercado:tabMarket,armazens:tabWarehouses,frota:tabFleet,equipa:tabStaff,financas:tabFinance,log:tabLog})[tab]();
+  $("tabContent").innerHTML=({mercado:tabMarket,armazens:tabWarehouses,frota:tabFleet,equipa:tabStaff,financas:tabFinance,mundo:tabWorld,log:tabLog})[tab]();
 }
 function tabMarket(){
   if(!S.offers.length) return empty("Mercado vazio","Volte dentro de minutos ou acelere o tempo no topo.");
@@ -391,6 +395,36 @@ function tabFinance(){
       <div class="mov-main"><strong>${esc(m.description)}</strong><small>${dt(m.at)}</small></div>
       <div class="mov-val ${m.amount>=0?"good":"bad"}">${money(m.amount)}<span class="mov-bal">saldo ${money(m.balance)}</span></div></div>`).join(""):empty("Sem movimentos","Os custos e receitas aparecem aqui.")}`;
 }
+function tabWorld(){
+  const lb=S.leaderboard, ev=S.market.event, unlocked=new Set(S.achievements.map(a=>a.key));
+  const evCard=ev?`<div class="card event-card"><div class="card-head"><div class="avatar a">${I.bolt.replace('<svg','<svg style="width:19px;height:19px"')}</div>
+      <div class="card-title"><strong>${esc(ev.label)}</strong><small>${esc(ev.message)}</small></div>
+      <span class="pill">${ev.active?"ATIVO":"TERMINADO"}</span></div>
+      <div class="chips" style="margin-top:10px">${ev.fuel_mod?`<span class="chip">gasóleo ${ev.fuel_mod>0?"+":""}${(ev.fuel_mod).toFixed(2)} €/L</span>`:""}${ev.price_mod?`<span class="chip">ofertas ${ev.price_mod>0?"+":""}${Math.round(ev.price_mod*100)}%</span>`:""}${ev.time_mod?`<span class="chip">duração +${Math.round(ev.time_mod*100)}%</span>`:""}<span class="chip">até ${dt(ev.event_until)}</span></div></div>`
+    :empty("Sem evento ativo","Os eventos mundiais rotacionam a cada 2 dias simulados.");
+  const rankRow=(r,i)=>`<div class="rank ${r.id===S.leaderboard.me?.id?"me":""}"><span class="rank-n">${i+1}</span>
+      <div class="rank-name"><strong>${esc(r.name)}</strong><small>${esc(r.base_city)} · ${r.deliveries} entregas</small></div>
+      <div class="rank-val"><strong>${money(r.cash)}</strong><small>rep ${Math.round(r.reputation)}</small></div></div>`;
+  return `<div class="section-head"><div><p class="eyebrow">Fase 4 · comunidade e dados abertos</p><h2>Mundo</h2></div><span class="count">${lb.total} empresas</span></div>
+    <div class="subhead">Evento mundial</div>${evCard}
+    <div class="subhead">Classificação · ${lb.me?"você é #"+lb.me.rank:"sem posição"}</div>
+    <div class="card rank-list">${lb.rows.length?lb.rows.map(rankRow).join(""):empty("Sem classificação","Ainda não há empresas registadas.")}</div>
+    <div class="subhead">Conquistas · ${unlocked.size}/${S.achievementCatalog.length}</div>
+    ${S.achievementCatalog.map(a=>{const got=unlocked.has(a.key);
+      return `<div class="ach ${got?"on":""}"><div class="ach-ico">${got?I.check:I.trophy.replace('<svg','<svg style="width:17px;height:17px"')}</div>
+        <div class="ach-main"><strong>${esc(a.name)}</strong><small>${esc(a.desc)}</small></div>
+        <span class="chip" style="color:${got?"var(--green)":"var(--muted)"}">${got?"DESBLOQUEADA":"+"+money(a.reward)}</span></div>`;}).join("")}
+    <div class="subhead">API pública · chaves de acesso</div>
+    <p class="lead">Consulte estatísticas e o ranking por HTTP com uma chave. Guardamos apenas o hash da chave; o valor original aparece uma única vez.</p>
+    <div class="code-block">GET /api/public/v1/stats<br>GET /api/public/v1/leaderboard<br><span>X-API-Key: plv1_…</span></div>
+    <div class="card"><div class="card-head"><div class="avatar">${I.key.replace('<svg','<svg style="width:18px;height:18px"')}</div>
+      <div class="card-title"><strong>Nova chave</strong><small>Limite: 60 pedidos/minuto por chave</small></div></div>
+      <div class="card-foot"><input class="qty" id="keyLabel" placeholder="Ex.: dashboard" maxlength="40" style="width:170px" value="${esc(ui.keyLabel||"")}" oninput="ui.keyLabel=this.value">
+        <button class="btn primary sm" onclick="createKey()">Gerar chave</button></div></div>
+    ${S.apiKeys.length?S.apiKeys.map(k=>`<div class="card"><div class="card-head"><div class="avatar g">${I.key.replace('<svg','<svg style="width:17px;height:17px"')}</div>
+      <div class="card-title"><strong>${esc(k.label)}</strong><small>Criada ${dt(k.created_at)} · ${k.last_used_at?"último uso "+dt(k.last_used_at):"nunca usada"}</small></div>
+      <button class="btn ghost sm" onclick="revokeKey(${k.id})">Revogar</button></div></div>`).join(""):empty("Sem chaves","Gere uma chave para usar a API pública.")}`;
+}
 function tabLog(){
   return `<div class="section-head"><div><p class="eyebrow">Registo do servidor</p><h2>Histórico</h2></div></div>
     ${S.log.length?`<div class="timeline">${S.log.map(l=>`<div class="tl ${l.type==="good"?"good":l.type==="bad"?"bad":""}"><time>${dt(l.at)}</time><p>${esc(l.message)}</p></div>`).join("")}</div>`:empty("Sem eventos","Ainda não aconteceu nada.")}`;
@@ -409,6 +443,23 @@ function cancelRec(id){ act(()=>api("/api/recurring/cancel","POST",{id})); }
 function takeL(){ act(()=>api("/api/loans/take","POST",{amount:Number(ui.loanAmt||2000)})); }
 function repayL(id){ act(()=>api("/api/loans/repay","POST",{id,amount:Number(ui.qty["loan"+id]||500)})); }
 function repairV(id){ act(()=>api("/api/vehicles/repair","POST",{vehicleId:id})); }
+async function createKey(){
+  try {
+    const r=await api("/api/apikeys/create","POST",{label:ui.keyLabel||"Chave"});
+    await refresh();
+    modal(`<div class="modal-ico">${I.key}</div><h2>Chave criada</h2><p class="sub">Copie agora — não será mostrada novamente.</p>
+      <div class="code-block">${esc(r.key)}</div>
+      <div class="err" style="color:var(--green)">${esc(r.note)}</div>
+      <div class="actions"><button class="btn ghost" onclick="copyKey(this)" data-key="${esc(r.key)}">Copiar</button>
+      <button class="btn primary" onclick="closeModal()">Concluído</button></div>`);
+    toast("Chave gerada. Guarde-a num local seguro.");
+  } catch(e){ toast(e.message,true); }
+}
+async function copyKey(btn){
+  try { await navigator.clipboard.writeText(btn.dataset.key); btn.textContent="Copiado!"; }
+  catch { btn.textContent="Copie manualmente"; }
+}
+function revokeKey(id){ act(()=>api("/api/apikeys/revoke","POST",{id})); }
 function openAccept(id){
   const o=S.offers.find(x=>x.id===id); if(!o) return;
   const vans=S.vehicles.filter(v=>v.status==="idle"&&VANS[v.model].kg>=o.kg&&VANS[v.model].m3>=o.m3);
