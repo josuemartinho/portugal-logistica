@@ -69,7 +69,40 @@ const CITIES = [
   { n:"Chaves",lo:-7.47,la:41.74 }
 ];
 const BASE_CITIES = ["Lisboa","Porto","Braga","Aveiro","Coimbra","Faro","Évora","Setúbal","Viseu","Guimarães","Sintra"];
-const CLIENTS = ["Continente","Pingo Doce","Worten","Delta Cafés","Vista Alegre","The Navigator Company"];
+const CLIENTS = ["Stellantis","Delta Cafés","Sofrapa","Pingo Doce","Continente","Lidl","Worten","The Navigator Company","Vista Alegre","Galp","EDP","Sonae"];
+
+/* Fase 7 — rede nacional de pontos de interesse: clientes reais em potencial. */
+const POI_CATEGORIES = [
+  { key:"supermercado", name:"Supermercados", color:"#5fb0ff", symbol:"S" },
+  { key:"farmacia",     name:"Farmacias",    color:"#36d99a", symbol:"+" },
+  { key:"oficina",      name:"Oficinas",     color:"#ffc75a", symbol:"O" },
+  { key:"autopecas",    name:"Autopeças",    color:"#a98bff", symbol:"A" },
+  { key:"industria",    name:"Indústria",    color:"#ff7183", symbol:"I" },
+  { key:"cafe",         name:"Café e alimentar", color:"#d8a86a", symbol:"C" },
+  { key:"logistica",    name:"Logística",    color:"#7cc4f5", symbol:"L" }
+];
+
+const POIS = [
+  { n:"Stellantis · Mangualde", city:"Viseu", cat:"industria", brand:"Stellantis", lo:-7.57, la:40.60, featured:true },
+  { n:"Stellantis · Setúbal", city:"Setúbal", cat:"industria", brand:"Stellantis", lo:-8.89, la:38.52, featured:true },
+  { n:"Delta Cafés · Campo Maior", city:"Elvas", cat:"cafe", brand:"Delta Cafés", lo:-7.07, la:39.06, featured:true },
+  { n:"Sofrapa · V. N. Barquinha", city:"Santarém", cat:"industria", brand:"Sofrapa", lo:-8.43, la:39.31, featured:true },
+  { n:"The Navigator Company · Aveiro", city:"Aveiro", cat:"industria", brand:"Navigator", lo:-8.65, la:40.64, featured:true },
+  { n:"Vista Alegre · Ílhavo", city:"Aveiro", cat:"industria", brand:"Vista Alegre", lo:-8.67, la:40.60, featured:true },
+  { n:"Galp · Refinaria de Setúbal", city:"Setúbal", cat:"industria", brand:"Galp", lo:-8.90, la:38.50, featured:true },
+  { n:"Pingo Doce · Lisboa", city:"Lisboa", cat:"supermercado", brand:"Pingo Doce", lo:-9.14, la:38.72, featured:true },
+  { n:"Continente · Porto", city:"Porto", cat:"supermercado", brand:"Continente", lo:-8.61, la:41.15, featured:true },
+  { n:"Hub logístico · Sines", city:"Sines", cat:"logistica", brand:"Porto de Sines", lo:-8.87, la:37.95, featured:true },
+  { n:"Hub logístico · Abrantes", city:"Abrantes", cat:"logistica", brand:"Plataforma Nacional", lo:-8.19, la:39.47, featured:true }
+];
+const POI_BIG_CITIES = new Set(["Lisboa","Porto","Braga","Aveiro","Coimbra","Setúbal","Faro","Évora","Viseu","Leiria","Santarém","Guimarães","Sintra","Portimão","Castelo Branco"]);
+for (const c of CITIES) {
+  const o = (c.n.length % 3) * 0.004;
+  POIS.push({ n:`Pingo Doce · ${c.n}`, city:c.n, cat:"supermercado", brand:"Pingo Doce", lo:c.lo+o, la:c.la+0.008 });
+  POIS.push({ n:`Farmácia Central · ${c.n}`, city:c.n, cat:"farmacia", brand:"Farmácia Central", lo:c.lo+0.010, la:c.la-0.004 });
+  POIS.push({ n:`Oficina Auto · ${c.n}`, city:c.n, cat:"oficina", brand:"Auto Serviço", lo:c.lo-0.011, la:c.la+0.012 });
+  if (POI_BIG_CITIES.has(c.n)) POIS.push({ n:`AutoPeças · ${c.n}`, city:c.n, cat:"autopecas", brand:"AutoPeças", lo:c.lo+0.013, la:c.la+0.003 });
+}
 const DNAMES = ["Rui Almeida","Sofia Marques","Pedro Nunes","Ana Costa","Miguel Faria","Inês Lopes","Tiago Silva","Carla Dias"];
 const VANS = {
   van:   { name:"Carrinha",    price:14000, kg:800,  m3:4,  l100:8.0 },
@@ -192,7 +225,7 @@ function makeOffer(now, anchor, reachKm){
 }
 function hhmm(t){ return new Date(t).toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"}); }
 
-module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,DNAMES,VANS,RECURRING_ROUTES,OUTLINE,ROADS,RIVERS,
+module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,POI_CATEGORIES,POIS,DNAMES,VANS,RECURRING_ROUTES,OUTLINE,ROADS,RIVERS,
   TIERS,tierFor,nextTier,withinKm,offerVisible,routeKey,
   pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm,fuelPrice,repairCost,
   ACHIEVEMENTS,WORLD_EVENTS };
