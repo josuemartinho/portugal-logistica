@@ -8,9 +8,11 @@ const { DatabaseSync } = require("node:sqlite");
 const G = require("./game");
 const { CFG, VANS, DNAMES, RECURRING_ROUTES, pick, uid, estimate, travelMs, makeOffer, hhmm } = G;
 
-const dataDir = path.join(__dirname, "..", "data");
+const dataDir = process.env.PTLOG_DB
+  ? path.dirname(path.resolve(process.env.PTLOG_DB))
+  : path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
-const db = new DatabaseSync(path.join(dataDir, "game.db"));
+const db = new DatabaseSync(process.env.PTLOG_DB ? path.resolve(process.env.PTLOG_DB) : path.join(dataDir, "game.db"));
 db.exec(`
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
