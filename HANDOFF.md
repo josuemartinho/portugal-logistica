@@ -13,7 +13,7 @@ Fonte da verdade do projeto. Quem continuar, lê este arquivo primeiro.
 - **Fase 6:** mapa Leaflet real, rotas OSRM em cache, 47 cidades, progressão local → regional → nacional.
 - **Stack:** Node 26.13.1 (mínimo 22.5), SQLite nativo, zero dependências npm; Leaflet 1.9.4 servido localmente.
 - **API:** `/api/health` → `{"ok":true,"version":"7.0-fase6","publicApi":"/api/public/v1","pwa":true,"map":"leaflet-osrm"}`.
-- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v7.0.0-fase6`).
+- **Repo:** `josuemartinho/portugal-logistica`, main + tags de release por fase (última: `v7.0.1-fase6`).
 - **Servidor:** `http://localhost:3000` e `http://192.168.1.252:3000`; exige PC ligado.
 
 ## Fase 6 — o que foi acrescentado
@@ -40,6 +40,15 @@ Validação no browser (servidor real, service worker e cache limpos): Leaflet a
 - Estilo satélite: `subdomains: undefined` fazia o Leaflet lançar `Cannot read properties of undefined (reading 'length')`; passou a `subdomains: c.subdomains || "abc"`.
 - Estilo claro: URL `positron` devolvia 404; corrigida para `light_all`.
 - Pool global de ofertas podia esgotar-se para bases novas → `refreshOffers()` passou a garantir 3 locais.
+
+## Correção mobile (v7.0.1)
+
+- **Problema:** no telemóvel, os controlos do mapa (`z-index` 500 do Leaflet e dos toggles) apareciam por cima do modal de login porque `.mapwrap` não isolava o *stacking context*.
+- **Correção:** `.mapwrap{position:relative;isolation:isolate;z-index:0}`; `.overlay{z-index:1000}`; `.toast{z-index:1100}`.
+- **Controlos:** botão **Camadas** (`toggleLayers()` em `app.js`) abre/fecha o painel de camadas; no desktop o botão está oculto e o painel é sempre visível.
+- **Responsividade:** `100dvh`, topbar compacta, grelha com mapa maior, modal com `row2` numa coluna, `tier-card`/`section-head` com wrap, HUD e `maptools` ajustados para 320 px.
+- **Validação:** iframes em 320×568, 390×844 e 1200×800; `elementFromPoint` no centro do modal aponta para o formulário; sem overflow horizontal; alternância de camadas 18 → 0 → 18; zero erros de consola.
+- **Nota:** a pedido do utilizador, autenticação não foi alterada — fica para quando ele pedir explicitamente.
 
 ## Pendências não funcionais
 
