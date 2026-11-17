@@ -5,8 +5,20 @@ const CFG = {
   capital: 25000, rent: 350, wage: 1500, social: 0.22, diesel: 1.75,
   tollPerKm: 0.10, motorwayShare: 0.60, wearPerKm: 0.10, speedKmh: 65,
   roadFactor: 1.25, loadMin: 30, unloadMin: 20, maxAbsenceDays: 30,
-  hireCost: 300, maxVehicles: 2, maxDrivers: 2, offerTarget: 11
+  hireCost: 300, maxVehicles: 2, maxDrivers: 2, offerTarget: 11,
+  // Fase 2 — armazéns e mercadorias
+  warehouseDeposit: 800, warehouseRent: 120, maxWarehouses: 3,
+  goodsBuy: 0.50, goodsSell: 0.68, maxRecurring: 3
 };
+
+/* Rotas recorrentes (Fase 2). O contrato gera uma oferta periódica. */
+const RECURRING_ROUTES = [
+  { id:"r1", client:"Continente", from:"Évora",    to:"Lisboa", kg:300, price:520, days:7 },
+  { id:"r2", client:"Pingo Doce", from:"Porto",     to:"Lisboa", kg:500, price:690, days:7 },
+  { id:"r3", client:"Delta Cafés",from:"Faro",      to:"Évora",  kg:250, price:480, days:7 },
+  { id:"r4", client:"Worten",     from:"Aveiro",    to:"Braga",  kg:400, price:510, days:7 },
+  { id:"r5", client:"Vista Alegre",from:"Aveiro",   to:"Lisboa", kg:350, price:560, days:7 }
+];
 
 const CITIES = [
   { n:"Lisboa",lo:-9.14,la:38.72 },{ n:"Porto",lo:-8.61,la:41.15 },
@@ -84,5 +96,5 @@ function makeOffer(now){
 }
 function hhmm(t){ return new Date(t).toLocaleTimeString("pt-PT",{hour:"2-digit",minute:"2-digit"}); }
 
-module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,DNAMES,VANS,OUTLINE,ROADS,RIVERS,
+module.exports = { CFG,CITIES,BASE_CITIES,CLIENTS,DNAMES,VANS,RECURRING_ROUTES,OUTLINE,ROADS,RIVERS,
   pick,uid,city,distKm,travelMs,estimate,makeOffer,hhmm };
