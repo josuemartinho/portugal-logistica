@@ -1,0 +1,16 @@
+services:
+  logistica:
+    build: .
+    image: portugal-logistica:6
+    container_name: portugal-logistica
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      PTLOG_DB: /app/data/game.db
+    volumes:
+      - logistica-data:/app/data
+
+volumes:
+  logistica-data:
