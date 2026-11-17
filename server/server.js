@@ -7,7 +7,8 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { db, tx, companyOf, getState, acceptOffer, buyVehicle, hireDriver, setSpeed, advance,
   ensureBaseWarehouse, rentWarehouse, buyStock, sellStock, signRecurring, cancelRecurring, setAutoDispatch,
-  takeLoan, repayLoan, repairVehicle } = require("./db");
+  takeLoan, repayLoan, repairVehicle,
+  publicStats, leaderboard, createApiKey, listApiKeys, revokeApiKey, authApiKey } = require("./db");
 const { CFG, BASE_CITIES } = require("./game");
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -84,7 +85,7 @@ const routes = {
     if (h.startsWith("Bearer ")) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(hash(h.slice(7)));
     json(res, 200, { ok:true });
   },
-  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"4.0-fase3" }),
+  "GET /api/health": async (req,res) => json(res, 200, { ok:true, version:"5.0-fase4", publicApi:"/api/public/v1" }),
   "GET /api/state": async (req,res,company) => json(res, 200, getState(company.id)),
   "POST /api/offers/accept": async (req,res,company) => {
     const b = await body(req);
@@ -136,7 +137,22 @@ const routes = {
   "POST /api/vehicles/repair": async (req,res,company) => {
     const b = await body(req);
     json(res, 200, repairVehicle(company.id, b.vehicleId));
-  }
+  },
+  // Fase 4 — chaves de API (gestão privada)
+  "POST /api/apikeys/create": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, createApiKey(company.id, b.label));
+  },
+  "GET /api/apikeys": async (req,res,company) => json(res, 200, { keys:listApiKeys(company.id) }),
+  "POST /api/apikeys/revoke": async (req,res,company) => {
+    const b = await body(req);
+    json(res, 200, revokeApiKey(company.id, b.id));
+  },
+  // Fase 4 — API pública (autenticação por chave, sem sessão)
+  "GET /api/public/v1/stats": async (req,res,key) => json(res, 200, publicStats()),
+  "GET /api/public/v1/leaderboard": async (req,res,key) => json(res, 200, {
+    ok:true, generatedAt:Date.now(), ...leaderboard(key.companyId), keyLabel:key.label
+  })
 };
 
 const MIME = { ".html":"text/html; charset=utf-8", ".css":"text/css; charset=utf-8",
@@ -156,24 +172,40 @@ function staticFile(req,res,pathname){
   });
 }
 
+const OPEN = new Set(["POST /api/register","POST /api/login","POST /api/logout","GET /api/health"]);
+const rate = new Map();
+function allowApiKey(key){
+  const now = Date.now(), rec = rate.get(key.id);
+  if (!rec || now >= rec.reset) {
+    if (rate.size > 500) rate.delete(rate.keys().next().value);
+    rate.set(key.id, { count:1, reset:now+60000 });
+    return true;
+  }
+  if (rec.count >= 60) return false;
+  rec.count++;
+  return true;
+}
+
 const server = http.createServer(async (req,res) => {
   try {
     const url = new URL(req.url, "http://localhost");
-    const key = req.method + " " + url.pathname;
-    const route = routes[key];
+    const routeKey = req.method + " " + url.pathname;
+    const route = routes[routeKey];
     if (route) {
-      const company = key.startsWith("GET /api/state") || key.startsWith("POST /api/")
-        ? (key === "POST /api/register" || key === "POST /api/login" || key === "POST /api/logout" || key === "GET /api/health" ? null : auth(req))
-        : null;
-      if (key !== "POST /api/register" && key !== "POST /api/login" && key !== "POST /api/logout" && key !== "GET /api/health" && !company) {
-        json(res,401,{error:"Sessão expirada. Inicie sessão novamente."}); return;
+      // Rotas públicas usam chave de API, nunca sessão.
+      if (routeKey.startsWith("GET /api/public/")) {
+        const key = authApiKey(req.headers["x-api-key"]);
+        if (!key) { json(res,401,{error:"Chave de API inválida ou ausente. Use o cabeçalho X-API-Key."}); return; }
+        if (!allowApiKey(key)) { json(res,429,{error:"Limite de 60 pedidos/minuto excedido."}); return; }
+        await route(req,res,key); return;
       }
-      await route(req,res,company);
-    } else if (url.pathname.startsWith("/api/")) {
-      json(res,404,{error:"Endpoint inexistente."});
-    } else {
-      staticFile(req,res,url.pathname);
+      if (OPEN.has(routeKey)) { await route(req,res,null); return; }
+      const company = auth(req);
+      if (!company) { json(res,401,{error:"Sessão expirada. Inicie sessão novamente."}); return; }
+      await route(req,res,company); return;
     }
+    if (url.pathname.startsWith("/api/")) { json(res,404,{error:"Endpoint inexistente."}); return; }
+    staticFile(req,res,url.pathname);
   } catch (e) {
     json(res,400,{error:e.message||"Erro inesperado."});
   }
